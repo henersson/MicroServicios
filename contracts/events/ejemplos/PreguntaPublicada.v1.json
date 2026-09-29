@@ -1,0 +1,49 @@
+{
+  "eventId": "4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b",
+  "eventType": "PreguntaPublicada",
+  "eventVersion": 1,
+  "occurredAt": "2026-09-08T16:03:21Z",
+  "source": "banco-preguntas-service",
+  "data": {
+    "pregunta": {
+      "id": "3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c",
+      "autorId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "contexto": "Una universidad esta migrando su plataforma academica monolitica hacia una arquitectura de microservicios. El equipo identifico tres contextos delimitados: Matriculas, Notas y Notificaciones. Durante el diseno, un desarrollador propone que los tres servicios compartan la misma base de datos PostgreSQL para evitar duplicar la informacion del estudiante y ahorrar costos de infraestructura. El arquitecto rechaza la propuesta argumentando que comprometeria una propiedad esencial del estilo arquitectonico elegido.",
+      "preguntaDirecta": "De acuerdo con los principios de la arquitectura de microservicios, cual es la razon principal por la que el arquitecto rechaza compartir la base de datos entre los tres servicios?",
+      "opciones": [
+        {
+          "texto": "Porque el acoplamiento a nivel de datos impide que cada servicio evolucione y se despliegue de forma independiente, que es la propiedad central del estilo.",
+          "esCorrecta": true
+        },
+        {
+          "texto": "Porque PostgreSQL no admite conexiones concurrentes desde mas de un servicio y se producirian bloqueos permanentes.",
+          "esCorrecta": false
+        },
+        {
+          "texto": "Porque el teorema CAP prohibe explicitamente que dos servicios accedan al mismo motor de base de datos relacional.",
+          "esCorrecta": false
+        },
+        {
+          "texto": "Porque una base de datos compartida siempre resulta mas costosa que mantener una instancia separada por cada microservicio.",
+          "esCorrecta": false
+        },
+        {
+          "texto": "Porque los microservicios solo pueden comunicarse mediante mensajeria asincrona y compartir datos obligaria a usar REST.",
+          "esCorrecta": false
+        }
+      ],
+      "justificacion": "La independencia de despliegue y evolucion es la propiedad que define a los microservicios, y depende de que cada servicio sea dueno exclusivo de sus datos (database per service). Al compartir el esquema, un cambio en una tabla obliga a coordinar el despliegue de los tres servicios, que vuelven a comportarse como un monolito distribuido. Los distractores son plausibles pero incorrectos: PostgreSQL si admite multiples clientes concurrentes; el teorema CAP habla de consistencia, disponibilidad y tolerancia a particiones, no de propiedad de esquemas; el costo es una consecuencia secundaria y no siempre desfavorable; y los microservicios pueden comunicarse tanto de forma sincrona como asincrona.",
+      "bibliografia": [
+        "Newman, S. (2021). Building Microservices: Designing Fine-Grained Systems (2nd ed.). O'Reilly Media, cap. 4.",
+        "Richardson, C. (2018). Microservices Patterns. Manning Publications, patron Database per Service.",
+        "Evans, E. (2003). Domain-Driven Design. Addison-Wesley, cap. 14."
+      ],
+      "competenciaCodigo": "ING-SOFT",
+      "competenciaNombre": "Diseno de Software y Arquitectura",
+      "tema": "Arquitectura de Software",
+      "subtema": "Microservicios",
+      "nivelDificultad": "MEDIO",
+      "estado": "PUBLICADA"
+    }
+  }
+}

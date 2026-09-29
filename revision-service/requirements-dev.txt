@@ -1,0 +1,9 @@
+# Dependencias solo de desarrollo y pruebas. No entran en la imagen Docker.
+-r requirements.txt
+
+pytest==9.1.1
+pytest-asyncio==1.4.0
+
+# Verifica que app/dominio no importe frameworks: es el equivalente del test de
+# ArchUnit del banco-preguntas-service.
+import-linter==2.15

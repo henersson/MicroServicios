@@ -1,0 +1,13 @@
+{
+  "eventId": "0a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
+  "eventType": "PreguntaAprobadaTecnicamente",
+  "eventVersion": 1,
+  "occurredAt": "2026-09-07T09:45:30Z",
+  "source": "revision-service",
+  "data": {
+    "revisionId": "c4d5e6f7-a8b9-4c0d-9e1f-2a3b4c5d6e7f",
+    "preguntaId": "3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c",
+    "revisorId": "b7c8d9e0-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+    "promedio": 4.4
+  }
+}

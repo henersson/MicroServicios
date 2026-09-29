@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saberpro.unicauca.edu.co/contracts/events/PreguntaEnviadaARevision.v1.schema.json",
+  "title": "Evento de integracion PreguntaEnviadaARevision (version 1)",
+  "description": "El autor envio la pregunta a revision y esta paso el ValidadorEstructural (invariantes 1 a 4). La pregunta quedo en PENDIENTE_REVISION. El revision-service consume este evento, pide el contenido por gRPC (ObtenerPregunta) y crea la revision asignandola a un revisor.\n\nExchange: saberpro.eventos (topic, durable)\nRouting key: banco.pregunta.enviada-a-revision\nProductor: banco-preguntas-service\nCola consumidora: revision.preguntas-enviadas\n\nPropiedades del mensaje AMQP: content_type=application/json, delivery_mode=2 (persistente), message_id=eventId, header eventType. Fechas en UTC ISO-8601.\n\nLos consumidores aplican la regla del lector tolerante: ignoran los campos que no conocen. Por eso este schema NO prohibe propiedades adicionales. Un cambio incompatible se publica como eventVersion 2 en un schema nuevo.",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "source",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "Identificador unico del evento. Se envia tambien como message_id de AMQP y es la clave de idempotencia: el consumidor lo guarda en su tabla eventos_procesados y descarta los repetidos."
+    },
+    "eventType": {
+      "type": "string",
+      "const": "PreguntaEnviadaARevision",
+      "description": "Nombre del evento. Se replica en el header eventType del mensaje."
+    },
+    "eventVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version del contrato del evento. Un cambio incompatible sube a 2."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento en que ocurrio el hecho de negocio, en UTC ISO-8601 (ejemplo: 2026-09-06T14:20:00Z). No es el momento de la publicacion en el broker."
+    },
+    "source": {
+      "type": "string",
+      "const": "banco-preguntas-service",
+      "description": "Microservicio que produjo el evento."
+    },
+    "data": {
+      "type": "object",
+      "description": "Carga util propia de este tipo de evento.",
+      "required": [
+        "preguntaId",
+        "autorId",
+        "competenciaCodigo"
+      ],
+      "properties": {
+        "preguntaId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "Pregunta que entra al ciclo de revision."
+        },
+        "autorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "Autor de la pregunta. El AsignadorRevisor lo usa para no asignarsela a si mismo."
+        },
+        "competenciaCodigo": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Competencia evaluada, util para elegir un revisor afin."
+        }
+      }
+    }
+  }
+}

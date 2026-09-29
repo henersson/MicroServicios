@@ -1,0 +1,12 @@
+{
+  "eventId": "9f2e3d4c-5b6a-4f7e-8d9c-1a2b3c4d5e6f",
+  "eventType": "RevisorAsignado",
+  "eventVersion": 1,
+  "occurredAt": "2026-09-06T14:20:07Z",
+  "source": "revision-service",
+  "data": {
+    "revisionId": "c4d5e6f7-a8b9-4c0d-9e1f-2a3b4c5d6e7f",
+    "preguntaId": "3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c",
+    "revisorId": "b7c8d9e0-1f2a-4b3c-8d4e-5f6a7b8c9d0e"
+  }
+}

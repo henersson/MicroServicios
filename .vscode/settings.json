@@ -1,0 +1,14 @@
+{
+  // El proyecto Java vive en una subcarpeta del repositorio.
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  // Los .ps1 necesitan BOM para que Windows PowerShell 5.1 no lea los acentos
+  // como ANSI y reviente el parser.
+  "[powershell]": {
+    "files.encoding": "utf8bom",
+    "files.eol": "\r\n"
+  },
+  "[sql]": { "files.encoding": "utf8" }
+}

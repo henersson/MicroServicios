@@ -1,0 +1,26 @@
+{
+  "eventId": "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+  "eventType": "PreguntaRechazadaPorPares",
+  "eventVersion": 1,
+  "occurredAt": "2026-09-07T10:12:00Z",
+  "source": "revision-service",
+  "data": {
+    "revisionId": "c4d5e6f7-a8b9-4c0d-9e1f-2a3b4c5d6e7f",
+    "preguntaId": "3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c",
+    "revisorId": "b7c8d9e0-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+    "observaciones": [
+      {
+        "observacionId": "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f",
+        "revisorId": "b7c8d9e0-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+        "texto": "El distractor sobre el teorema CAP es demasiado evidente para un estudiante de ultimo semestre: menciona una prohibicion que ningun texto plantea. Reformularlo para que confunda consistencia eventual con propiedad del esquema.",
+        "fecha": "2026-09-07T10:05:12Z"
+      },
+      {
+        "observacionId": "3d4e5f6a-7b8c-4d9e-8f0a-1b2c3d4e5f6a",
+        "revisorId": "b7c8d9e0-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+        "texto": "El contexto supera las 120 palabras recomendadas para Saber Pro. Recortar la descripcion de los tres contextos delimitados sin perder la situacion a analizar.",
+        "fecha": "2026-09-07T10:09:48Z"
+      }
+    ]
+  }
+}

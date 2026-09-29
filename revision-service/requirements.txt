@@ -1,0 +1,31 @@
+# =============================================================================
+# Dependencias del revision-service. Versiones fijas para que la construcción sea
+# reproducible.
+#
+# Instalar en Windows:
+#   python -m venv .venv
+#   .\.venv\Scripts\Activate.ps1
+#   python -m pip install -r requirements.txt
+# =============================================================================
+
+# ── API REST ────────────────────────────────────────────────────────────────
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+
+# ── Persistencia propia del microservicio (PostgreSQL) ──────────────────────
+# psycopg 3 en modo asíncrono: SQLAlchemy 2 lo usa con postgresql+psycopg://
+SQLAlchemy[asyncio]==2.0.54
+alembic==1.20.0
+psycopg[binary,pool]==3.3.6
+
+# ── Mensajería (RabbitMQ) ───────────────────────────────────────────────────
+aio-pika==10.0.1
+
+# ── Comunicación síncrona con banco-preguntas-service ───────────────────────
+# grpcio-tools genera el código desde contracts/proto; se necesita también en
+# tiempo de construcción de la imagen (ver Dockerfile y scripts/generar-grpc.ps1).
+grpcio==1.84.0
+grpcio-tools==1.84.0
+
+# ── Configuración por variables de entorno ──────────────────────────────────
+pydantic-settings==2.15.0

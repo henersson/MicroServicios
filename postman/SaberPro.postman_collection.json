@@ -1,0 +1,2413 @@
+{
+ "info": {
+  "name": "SaberPro - Banco de Preguntas (Taller 2)",
+  "description": "Colección de pruebas del sistema de gestión del banco de preguntas Saber Pro.\n\n**Taller 2 de Arquitectura de Microservicios — Universidad del Cauca.**\n\n---\n\n## Antes de empezar\n\n1. Levanta todo el sistema:\n   ```powershell\n   powershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n   ```\n2. Importa también el environment `SaberPro-local.postman_environment.json` y selecciónalo arriba a la derecha.\n\n## Cómo está organizada\n\n| Carpeta | Para qué |\n|---|---|\n| **0. Comprobación inicial** | Que el sistema responde, y las 2 peticiones de RabbitMQ para ver la asincronía |\n| **1. Banco - Preguntas** | Cada endpoint del `banco-preguntas-service` por separado |\n| **2. Revisión - Revisores y revisiones** | Cada endpoint del `revision-service` por separado |\n| **3. Flujo completo** | El recorrido de punta a punta. **Esta es la que hay que correr con el Collection Runner** |\n| **4. Casos inválidos** | Cada petición debe fallar; los tests comprueban el código y el Problem Details |\n\n## Los pasos asíncronos\n\nTres pasos del flujo dependen de que un evento viaje por RabbitMQ. Sus tests se repiten a sí mismos con `setNextRequest` hasta que el estado cambie (máximo 20 intentos), para que la colección no falle por tiempos.\n\n## Usuarios simulados\n\nNo hay autenticación real: el usuario se declara en cada petición con `X-Usuario-Id` y `X-Usuario-Rol`. Los identificadores están en el environment.\n\n---\n\n## Probar gRPC (hay que crear la petición a mano)\n\nEl `banco-preguntas-service` expone un servidor gRPC en **`localhost:9091`** con **Server Reflection**, así que Postman descubre el servicio solo, sin necesidad de cargar el `.proto`.\n\n**Postman no permite importar peticiones gRPC desde un archivo de colección**, así que hay que crearla una vez a mano.\n\n---\n\n### Pasos\n\n1. Consigue un identificador de pregunta real: corre **1. Banco - Preguntas → Listar preguntas con filtros** y copia el `id` de cualquier elemento de `contenido`.\n2. **New** (botón azul arriba a la izquierda) → **gRPC**.\n3. En la URL escribe **`localhost:9091`**. *Sin* `http://` delante: con `http://` no funciona.\n4. Marca la casilla **Use server reflection**.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el id del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**.\n8. **Save** → guárdala en la carpeta **1. Banco - Preguntas**.\n\n---\n\n### Respuesta esperada\n\nLa pregunta completa, con sus 5 opciones y el campo `es_correcta` en cada una:\n\n```json\n{\n  \"id\": \"3f9a1c52-...\",\n  \"autor_id\": \"a1b2c3d4-...\",\n  \"contexto\": \"Una universidad está migrando su plataforma...\",\n  \"pregunta_directa\": \"¿Cuál es la razón principal...?\",\n  \"opciones\": [\n    { \"texto\": \"Porque el acoplamiento a nivel de datos...\", \"es_correcta\": true },\n    { \"texto\": \"Porque PostgreSQL no admite conexiones...\" }\n  ],\n  \"justificacion\": \"La independencia de despliegue...\",\n  \"competencia_codigo\": \"ING-SOFT\",\n  \"nivel_dificultad\": \"MEDIO\",\n  \"estado\": \"PUBLICADA\"\n}\n```\n\n> En protobuf, un `false` y una cadena vacía **no se serializan**: por eso las opciones incorrectas salen sin el campo `es_correcta`. Es el comportamiento normal de proto3, no un error.\n\n---\n\n### Probar también los errores\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nCódigos propios de gRPC, no un 500 genérico.\n\n---\n\n### El otro método: el que usará el 3er microservicio\n\n`ListarPreguntasPublicadas` devuelve solo preguntas en estado `PUBLICADA`, con filtros opcionales:\n\n```json\n{ \"competencia_codigo\": \"ING-SOFT\", \"limite\": 10 }\n```\n\nUn filtro vacío significa *no filtrar por ese criterio*, y `limite: 0` aplica el valor por defecto de 50.\n\n---\n\n### Si prefieres la línea de comandos\n\n```powershell\ndocker run --rm --network saberpro-net fullstorydev/grpcurl -plaintext `\n  banco-preguntas-service:9091 list saberpro.banco.v1.BancoPreguntas\n```",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+ },
+ "item": [
+  {
+   "name": "0. Comprobación inicial",
+   "description": "**Corre esta carpeta primero.** Comprueba en 6 peticiones que el sistema está arriba y listo para probar.\n\nSi alguna falla, no sigas con las demás carpetas: revisa primero que `docker compose ps` muestre los 5 contenedores en `healthy`.",
+   "item": [
+    {
+     "name": "1. Health del banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const c = pm.response.json();",
+         "pm.test(\"El banco está UP\", () => pm.expect(c.status).to.eql(\"UP\"));",
+         "pm.test(\"Su PostgreSQL está UP\", () => pm.expect(c.components.db.status).to.eql(\"UP\"));",
+         "pm.test(\"Su conexión a RabbitMQ está UP\", () => pm.expect(c.components.rabbit.status).to.eql(\"UP\"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlBanco}}/actuator/health",
+       "host": [
+        "{{urlBanco}}/actuator/health"
+       ]
+      },
+      "description": "El `banco-preguntas-service` responde, y de paso dice si su PostgreSQL y RabbitMQ estan bien.\n\n**Respuesta esperada:** `200` con `status: UP` y `db` y `rabbit` tambien en `UP`."
+     },
+     "response": []
+    },
+    {
+     "name": "2. Health de revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"Revisión está UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlRevision}}/health",
+       "host": [
+        "{{urlRevision}}/health"
+       ]
+      },
+      "description": "El `revision-service` responde.\n\n**Respuesta esperada:** `200` con `{\"status\": \"UP\", \"servicio\": \"revision-service\"}`."
+     },
+     "response": []
+    },
+    {
+     "name": "3. Hay preguntas de ejemplo en el banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const pagina = pm.response.json();",
+         "pm.test(\"Hay preguntas de ejemplo\", () => pm.expect(pagina.totalElementos).to.be.at.least(3));",
+         "",
+         "const estados = pagina.contenido.map(p => p.estado);",
+         "console.log(\"Estados presentes:\", [...new Set(estados)].join(\", \"));",
+         "",
+         "// Se guarda una en BORRADOR para poder recorrer el flujo despues.",
+         "const borrador = pagina.contenido.find(p => p.estado === \"BORRADOR\");",
+         "if (borrador) {",
+         "    pm.collectionVariables.set(\"preguntaBorradorId\", borrador.id);",
+         "    console.log(\"Pregunta en BORRADOR lista para el flujo:\", borrador.id);",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas?page=0&size=50",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas?page=0&size=50"
+       ]
+      },
+      "description": "Las migraciones de Flyway cargan 3 preguntas de Ingenieria de Sistemas al arrancar.\n\n**Respuesta esperada:** `200` con al menos 3 elementos en `contenido`, y entre ellos una `PUBLICADA`, una `APROBADA` y una `BORRADOR`."
+     },
+     "response": []
+    },
+    {
+     "name": "4. Hay revisores de ejemplo",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const revisores = pm.response.json();",
+         "pm.test(\"Hay al menos 3 revisores\", () => pm.expect(revisores.length).to.be.at.least(3));",
+         "pm.test(\"Están activos\", function () {",
+         "    pm.expect(revisores.filter(r => r.activo).length).to.be.at.least(3);",
+         "});",
+         "console.log(\"Revisores:\", revisores.map(r => r.nombre).join(\" | \"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisores",
+       "host": [
+        "{{urlRevision}}/api/v1/revisores"
+       ]
+      },
+      "description": "Las migraciones de Alembic cargan 3 revisores de la Facultad de Ingenieria al arrancar.\n\n**Respuesta esperada:** `200` con al menos 3 revisores, todos con `activo: true`.\n\nSin revisores, el `AsignadorRevisor` no tendria a quien asignar y las preguntas se quedarian en la cola de pendientes (invariante 9)."
+     },
+     "response": []
+    },
+    {
+     "name": "5. Publicar un PreguntaPublicada de prueba",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"El broker lo enrutó a una cola\", function () {",
+         "    pm.expect(pm.response.json().routed).to.be.true;",
+         "});",
+         "console.log(\"Publicado. La peticion siguiente lo lee sin consumirlo.\");"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/exchanges/%2F/saberpro.eventos/publish",
+       "host": [
+        "{{urlRabbitMQ}}/api/exchanges/%2F/saberpro.eventos/publish"
+       ]
+      },
+      "description": "Publica un `PreguntaPublicada` de ejemplo en el exchange.\n\n**Asi es como el equipo del `simulacros-service` podra probar su consumidor sin tener que crear una pregunta, enviarla a revision, evaluarla y publicarla cada vez.**\n\nEl cuerpo de esta peticion es el ejemplo de `contracts/events/ejemplos/PreguntaPublicada.v1.json`, recortado.\n\n**Respuesta esperada:** `200` con `{\"routed\": true}`. Si sale `routed: false`, la routing key no llego a ninguna cola: revisala.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"properties\": {\n    \"content_type\": \"application/json\",\n    \"delivery_mode\": 2,\n    \"headers\": {\n      \"eventType\": \"PreguntaPublicada\"\n    },\n    \"message_id\": \"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\"\n  },\n  \"routing_key\": \"banco.pregunta.publicada\",\n  \"payload\": \"{\\\"eventId\\\": \\\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\\", \\\"eventType\\\": \\\"PreguntaPublicada\\\", \\\"eventVersion\\\": 1, \\\"occurredAt\\\": \\\"2026-09-23T12:00:00Z\\\", \\\"source\\\": \\\"banco-preguntas-service\\\", \\\"data\\\": {\\\"pregunta\\\": {\\\"id\\\": \\\"3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c\\\", \\\"autorId\\\": \\\"{{autorId}}\\\", \\\"contexto\\\": \\\"Evento publicado a mano desde Postman para probar un consumidor sin tener que recorrer todo el flujo.\\\", \\\"preguntaDirecta\\\": \\\"¿Que propiedad del acoplamiento entre servicios se prioriza?\\\", \\\"opciones\\\": [{\\\"texto\\\": \\\"El desacoplamiento temporal entre los dos servicios.\\\", \\\"esCorrecta\\\": true}, {\\\"texto\\\": \\\"El desacoplamiento de despliegue por un pipeline comun.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La consistencia fuerte entre las dos bases de datos.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La idempotencia garantizada por el broker.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La tolerancia a particiones que exige el teorema CAP.\\\", \\\"esCorrecta\\\": false}], \\\"justificacion\\\": \\\"Publicar un evento elimina la dependencia temporal: el productor termina su operacion aunque el consumidor este caido.\\\", \\\"bibliografia\\\": [\\\"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns.\\\"], \\\"competenciaCodigo\\\": \\\"ING-SOFT\\\", \\\"competenciaNombre\\\": \\\"Diseño de Software y Arquitectura\\\", \\\"tema\\\": \\\"Arquitectura de Software\\\", \\\"subtema\\\": \\\"Microservicios\\\", \\\"nivelDificultad\\\": \\\"MEDIO\\\", \\\"estado\\\": \\\"PUBLICADA\\\"}}}\",\n  \"payload_encoding\": \"string\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "6. Ver mensajes de simulacros.catalogo-preguntas sin consumirlos",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const mensajes = pm.response.json();",
+         "pm.test(\"Hay al menos un evento\", () => pm.expect(mensajes.length).to.be.at.least(1));",
+         "",
+         "mensajes.forEach(m => {",
+         "    const ev = JSON.parse(m.payload);",
+         "    console.log(`--- ${ev.eventType} (rk: ${m.routing_key}) ---`);",
+         "    console.log(\"eventId:\", ev.eventId, \"| occurredAt:\", ev.occurredAt, \"| source:\", ev.source);",
+         "    if (ev.eventType === \"PreguntaPublicada\") {",
+         "        const p = ev.data.pregunta;",
+         "        console.log(`pregunta ${p.id}: ${p.opciones.length} opciones, tema ${p.tema}`);",
+         "    }",
+         "});",
+         "",
+         "pm.test(\"El envelope cumple el contrato\", function () {",
+         "    const ev = JSON.parse(mensajes[0].payload);",
+         "    pm.expect(ev).to.have.all.keys(",
+         "        \"eventId\", \"eventType\", \"eventVersion\", \"occurredAt\", \"source\", \"data\");",
+         "    pm.expect(ev.eventVersion).to.eql(1);",
+         "    pm.expect(ev.occurredAt).to.match(/Z$/, \"las fechas van en UTC terminadas en Z\");",
+         "});",
+         "",
+         "pm.test(\"Las propiedades AMQP son las del contrato\", function () {",
+         "    const p = mensajes[0].properties;",
+         "    pm.expect(p.content_type).to.eql(\"application/json\");",
+         "    pm.expect(p.delivery_mode).to.eql(2, \"el mensaje debe ser persistente\");",
+         "    pm.expect(p.headers.eventType).to.be.a(\"string\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/queues/%2F/simulacros.catalogo-preguntas/get",
+       "host": [
+        "{{urlRabbitMQ}}/api/queues/%2F/simulacros.catalogo-preguntas/get"
+       ]
+      },
+      "description": "Saca un mensaje para verlo y **lo devuelve a la cola**.\n\nLa clave es `ackmode: ack_requeue_true`: mira sin consumir. Con `ack_requeue_false` el mensaje se consumiria y desapareceria, y el `simulacros-service` ya no lo encontraria.\n\n**Respuesta esperada:** `200` con un array. Cada elemento trae el `payload` con el envelope completo del evento, y en `properties` el `message_id`, el `delivery_mode: 2` y la cabecera `eventType`.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"count\": 3,\n  \"ackmode\": \"ack_requeue_true\",\n  \"encoding\": \"auto\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "1. Banco - Preguntas",
+   "description": "Operaciones del Bounded Context **Banco de Preguntas** (`banco-preguntas-service`, Java 21 + Spring Boot).\n\nTodas las peticiones llevan las cabeceras `X-Usuario-Id` y `X-Usuario-Rol`: no hay autenticación real, el usuario se simula.",
+   "item": [
+    {
+     "name": "Health del banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"El servicio está UP\", function () {",
+         "    const c = pm.response.json();",
+         "    pm.expect(c.status).to.eql(\"UP\");",
+         "    pm.expect(c.components.db.status).to.eql(\"UP\");",
+         "    pm.expect(c.components.rabbit.status).to.eql(\"UP\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlBanco}}/actuator/health",
+       "host": [
+        "{{urlBanco}}/actuator/health"
+       ]
+      },
+      "description": "Sonda de vida. Muestra tambien el estado de PostgreSQL y RabbitMQ."
+     },
+     "response": []
+    },
+    {
+     "name": "Crear pregunta (201)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 201 Created\", () => pm.response.to.have.status(201));",
+         "",
+         "const p = pm.response.json();",
+         "pm.test(\"Nace en BORRADOR\", () => pm.expect(p.estado).to.eql(\"BORRADOR\"));",
+         "pm.test(\"Tiene 5 opciones con 1 correcta (invariante 1)\", function () {",
+         "    pm.expect(p.opciones).to.have.lengthOf(5);",
+         "    pm.expect(p.opciones.filter(o => o.esCorrecta)).to.have.lengthOf(1);",
+         "});",
+         "pm.test(\"Devuelve la cabecera Location\", function () {",
+         "    pm.expect(pm.response.headers.get(\"Location\")).to.include(p.id);",
+         "});",
+         "",
+         "// Se guarda para las peticiones siguientes.",
+         "pm.collectionVariables.set(\"preguntaId\", p.id);",
+         "console.log(\"preguntaId =\", p.id);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Crea una pregunta valida. Nace en **BORRADOR**.\n\nGuarda el `id` en la variable `preguntaId` para las siguientes peticiones.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "Consultar pregunta por id",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"Es la pregunta que creamos\", function () {",
+         "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"preguntaId\"));",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}"
+       ]
+      },
+      "description": "Devuelve la pregunta completa. No exige un rol concreto, pero si las cabeceras de usuario."
+     },
+     "response": []
+    },
+    {
+     "name": "Editar pregunta (200)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test(\"El subtema se actualizó\", () => pm.expect(p.subtema).to.eql(\"Mensajería asíncrona y desacoplamiento temporal\"));",
+         "pm.test(\"Los acentos llegan intactos\", function () {",
+         "    pm.expect(p.contexto).to.include(\"matrículas\");",
+         "    pm.expect(p.preguntaDirecta).to.include(\"¿Qué\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}"
+       ]
+      },
+      "description": "Reemplaza el contenido. Solo el **autor** y solo en **BORRADOR** (invariante 7).\n\n**Respuesta esperada:** `200` con el contenido nuevo.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola. (Corregido por el autor desde Postman.)\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona y desacoplamiento temporal\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "Listar preguntas con filtros",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const pagina = pm.response.json();",
+         "pm.test(\"Tiene forma de página propia (no el Page de Spring)\", function () {",
+         "    pm.expect(pagina).to.have.all.keys(",
+         "        \"contenido\", \"pagina\", \"tamano\", \"totalElementos\", \"totalPaginas\");",
+         "});",
+         "pm.test(\"Si hay resultados, todos están PUBLICADA\", function () {",
+         "    pagina.contenido.forEach(p => pm.expect(p.estado).to.eql(\"PUBLICADA\"));",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas?estado=PUBLICADA&competencia=ING-SOFT&page=0&size=10",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas?estado=PUBLICADA&competencia=ING-SOFT&page=0&size=10"
+       ]
+      },
+      "description": "Lista paginada. Todos los filtros son opcionales y se combinan con AND; omitir uno significa *no filtrar por ese criterio*.\n\nEl tamano de pagina se limita a 100 para proteger al servicio."
+     },
+     "response": []
+    },
+    {
+     "name": "Enviar a revisión (200)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"Pasa a PENDIENTE_REVISION\", function () {",
+         "    pm.expect(pm.response.json().estado).to.eql(\"PENDIENTE_REVISION\");",
+         "});",
+         "console.log(\"Evento PreguntaEnviadaARevision publicado; revision deberia tomarlo en ~1 s\");"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/enviar-a-revision",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/enviar-a-revision"
+       ]
+      },
+      "description": "Pasa la pregunta a **PENDIENTE_REVISION** y publica `PreguntaEnviadaARevision` en RabbitMQ.\n\nA partir de aqui el flujo sigue solo: revision consume el evento, pide el contenido por gRPC y asigna un revisor."
+     },
+     "response": []
+    },
+    {
+     "name": "Consultar historial (ADMINISTRADOR)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const h = pm.response.json();",
+         "pm.test(\"Empieza por la creación\", function () {",
+         "    pm.expect(h[0].estadoAnterior).to.be.null;",
+         "    pm.expect(h[0].estadoNuevo).to.eql(\"BORRADOR\");",
+         "});",
+         "pm.test(\"Cada entrada tiene motivo y fecha\", function () {",
+         "    h.forEach(c => {",
+         "        pm.expect(c.motivo).to.be.a(\"string\").and.not.empty;",
+         "        pm.expect(c.fecha).to.be.a(\"string\");",
+         "    });",
+         "});",
+         "console.log(\"Transiciones:\", h.map(c => c.estadoNuevo).join(\" -> \"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/historial",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/historial"
+       ]
+      },
+      "description": "Trazabilidad completa: quien movio la pregunta, cuando y por que.\n\nRestringido al `ADMINISTRADOR` porque revela que revisor tomo cada decision, y la revision por pares es anonima frente al autor."
+     },
+     "response": []
+    },
+    {
+     "name": "Publicar (ADMINISTRADOR)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// En esta carpeta la pregunta viene de \"Enviar a revision (200)\", asi que no",
+         "// esta APROBADA: el 409 es la respuesta correcta y la unica posible.",
+         "// El camino feliz de publicar se prueba en \"3. Flujo completo\".",
+         "pm.test(\"409 porque la pregunta no está APROBADA (invariante 5)\", function () {",
+         "    pm.response.to.have.status(409);",
+         "});",
+         "",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const p = pm.response.json();",
+         "    pm.expect(p.title).to.be.a(\"string\");",
+         "    pm.expect(p.detail).to.be.a(\"string\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/publicar"
+       ]
+      },
+      "description": "Publica una pregunta **APROBADA**. Emite `PreguntaPublicada` con la pregunta completa hacia la cola del futuro `simulacros-service`.\n\nSolo funciona si la pregunta ya paso la revision; si no, devuelve 409. Usa la carpeta *3. Flujo completo* para llegar a ese estado."
+     },
+     "response": [],
+     "description": "Aquí la pregunta viene de *Enviar a revisión (200)*, así que no está `APROBADA` y la respuesta correcta es **409**. El camino feliz de publicar está en *3. Flujo completo*."
+    },
+    {
+     "name": "Archivar (ADMINISTRADOR)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// La pregunta esta en PENDIENTE_REVISION o EN_REVISION, y desde ahi no se",
+         "// puede archivar: solo desde BORRADOR, APROBADA o PUBLICADA. El 409 es la",
+         "// unica respuesta posible aqui.",
+         "pm.test(\"409 porque no se puede archivar desde este estado (invariante 6)\", function () {",
+         "    pm.response.to.have.status(409);",
+         "});",
+         "",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const p = pm.response.json();",
+         "    pm.expect(p.title).to.be.a(\"string\");",
+         "    pm.expect(p.detail).to.be.a(\"string\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/archivar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/archivar"
+       ]
+      },
+      "description": "Saca la pregunta de circulacion. Es la **unica salida** del ciclo de vida: en el banco nada se elimina fisicamente (invariante 8), por eso no existe ningun `DELETE` en esta API.\n\nEl cuerpo es opcional; el motivo queda en el historial.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"motivo\": \"El tema salio del temario de Saber Pro 2027.\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "description": "Archivar solo se permite desde `BORRADOR`, `APROBADA` o `PUBLICADA`. Aquí la pregunta está en revisión, así que la respuesta correcta es **409**. El archivado desde los tres estados permitidos está probado en `PreguntaTest` del banco."
+    }
+   ]
+  },
+  {
+   "name": "2. Revisión - Revisores y revisiones",
+   "description": "Operaciones del Bounded Context **Ciclo de Vida y Revisión** (`revision-service`, Python 3.13 + FastAPI).\n\nLos tres revisores de los datos semilla se pueden listar con la primera petición de esta carpeta.",
+   "item": [
+    {
+     "name": "Health de revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"El servicio está UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlRevision}}/health",
+       "host": [
+        "{{urlRevision}}/health"
+       ]
+      },
+      "description": "Sonda de vida. Equivale al `/actuator/health` del banco."
+     },
+     "response": []
+    },
+    {
+     "name": "Listar revisores (ADMINISTRADOR)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const revisores = pm.response.json();",
+         "pm.test(\"Hay al menos 2 revisores (datos semilla)\", function () {",
+         "    pm.expect(revisores.length).to.be.at.least(2);",
+         "});",
+         "pm.test(\"Vienen ordenados del más antiguo al más reciente\", function () {",
+         "    for (let i = 1; i < revisores.length; i++) {",
+         "        pm.expect(new Date(revisores[i].registradoEn).getTime())",
+         "          .to.be.at.least(new Date(revisores[i - 1].registradoEn).getTime());",
+         "    }",
+         "});",
+         "console.log(\"Revisores:\", revisores.map(r => `${r.nombre} (${r.revisorId.slice(0,8)})`).join(\", \"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisores",
+       "host": [
+        "{{urlRevision}}/api/v1/revisores"
+       ]
+      },
+      "description": "Lista la **proyeccion local** de revisores, del mas antiguo al mas reciente.\n\nEse orden no es casual: es el que usa el `AsignadorRevisor` para desempatar cuando dos revisores tienen la misma carga."
+     },
+     "response": []
+    },
+    {
+     "name": "Registrar revisor (201)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// El correo lleva un sufijo aleatorio, asi que el 201 es la unica respuesta",
+         "// posible y la coleccion se puede correr las veces que haga falta.",
+         "const r = pm.response.json();",
+         "",
+         "pm.test(\"Responde 201 y devuelve el revisor\", function () {",
+         "    pm.response.to.have.status(201);",
+         "    pm.expect(r.revisorId).to.be.a(\"string\");",
+         "    pm.expect(r.activo).to.be.true;",
+         "});",
+         "",
+         "pm.collectionVariables.set(\"revisorNuevoId\", r.revisorId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisores",
+       "host": [
+        "{{urlRevision}}/api/v1/revisores"
+       ]
+      },
+      "description": "Da de alta un revisor en la proyeccion local del `revision-service`.\n\n**Respuesta esperada:** `201` con el revisor creado. Si el correo ya existe, `409`.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nombre\": \"Revisor de prueba Postman\",\n  \"correo\": \"revisor.postman.{{$timestamp}}@unicauca.edu.co\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "description": "El correo lleva un sufijo con la hora, así que esta petición siempre crea un revisor nuevo y se puede repetir."
+    },
+    {
+     "name": "Listar revisiones (ADMINISTRADOR)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "pm.test(\"Es una lista\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));",
+         "const rs = pm.response.json();",
+         "if (rs.length) {",
+         "    console.log(\"Estados:\", rs.map(r => r.estado).join(\", \"));",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones"
+       ]
+      },
+      "description": "Lista revisiones de la mas reciente a la mas antigua.\n\nUn `REVISOR` solo ve **sus propias** revisiones: si no envia `revisorId` se le aplica el suyo, y si envia el de otro recibe 403. Un `ADMINISTRADOR` las ve todas."
+     },
+     "response": []
+    },
+    {
+     "name": "Listar revisiones por pregunta",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Paso ASINCRONO ---------------------------------------------------------",
+         "// La revision no existe en el instante en que el autor envia la pregunta:",
+         "// depende de que un evento viaje por RabbitMQ, de una llamada gRPC y de que el",
+         "// revision-service la cree. Postman no tiene sleep, asi que esta peticion se",
+         "// repite a si misma hasta encontrarla. Sin esto, la coleccion falla en un",
+         "// entorno recien levantado y pasa en el segundo intento, que es peor.",
+         "const MAX_INTENTOS = 20;",
+         "let intentos = parseInt(pm.collectionVariables.get(\"intentosRevisionCreada\") || \"0\", 10);",
+         "",
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const rs = pm.response.json();",
+         "",
+         "if (rs.length === 0 && intentos < MAX_INTENTOS) {",
+         "    intentos += 1;",
+         "    pm.collectionVariables.set(\"intentosRevisionCreada\", String(intentos));",
+         "    console.log(`Todavia sin revision, esperando... intento ${intentos}/${MAX_INTENTOS}`);",
+         "    // Espera ocupada de ~700 ms: es lo unico que hay en el sandbox de Postman.",
+         "    const hasta = Date.now() + 700;",
+         "    while (Date.now() < hasta) { /* esperando */ }",
+         "    postman.setNextRequest(\"Listar revisiones por pregunta\");",
+         "} else {",
+         "    pm.collectionVariables.set(\"intentosRevisionCreada\", \"0\");",
+         "    pm.test(\"Hay una revisión para esta pregunta\", () => pm.expect(rs.length).to.be.at.least(1));",
+         "",
+         "    if (rs.length) {",
+         "        const r = rs[0];",
+         "        pm.collectionVariables.set(\"revisionId\", r.revisionId);",
+         "        // Se guarda el revisor REAL asignado: fijarlo a mano no serviria, porque lo",
+         "        // elige el AsignadorRevisor segun la carga de cada uno.",
+         "        pm.collectionVariables.set(\"revisorAsignadoId\", r.revisorId);",
+         "        pm.test(\"El snapshot llegó completo por gRPC\", function () {",
+         "            pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "            pm.expect(r.snapshot.contexto).to.be.a(\"string\").and.not.empty;",
+         "            pm.expect(r.snapshot.competenciaCodigo).to.eql(\"ING-SOFT\");",
+         "        });",
+         "        console.log(\"revisionId =\", r.revisionId, \"| revisor =\", r.revisorId);",
+         "    }",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones?preguntaId={{preguntaId}}",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones?preguntaId={{preguntaId}}"
+       ]
+      },
+      "description": "Filtra por pregunta. Es la forma de encontrar la revision que se creo al enviar una pregunta a revision.\n\nGuarda `revisionId` y `revisorAsignadoId` para las peticiones siguientes."
+     },
+     "response": []
+    },
+    {
+     "name": "Consultar una revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test(\"Trae el formato y sus criterios faltantes\", function () {",
+         "    pm.expect(r).to.have.property(\"formato\");",
+         "    pm.expect(r).to.have.property(\"formatoCompleto\");",
+         "    pm.expect(r).to.have.property(\"criteriosFaltantes\");",
+         "    pm.expect(r).to.have.property(\"promedio\");",
+         "});",
+         "console.log(`estado=${r.estado} promedio=${r.promedio} completo=${r.formatoCompleto}`);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{revisorAsignadoId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{revisionId}}",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{revisionId}}"
+       ]
+      },
+      "description": "Devuelve la revision completa, incluido el **snapshot** de la pregunta que el revisor tiene que evaluar.\n\nEl snapshot se obtuvo del banco por gRPC al crear la revision y **no se actualiza**: el revisor puntua una version concreta del texto."
+     },
+     "response": []
+    },
+    {
+     "name": "Guardar formato de evaluación (200)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test(\"El formato queda completo\", () => pm.expect(r.formatoCompleto).to.be.true);",
+         "pm.test(\"Pasa a EN_EVALUACION\", () => pm.expect(r.estado).to.eql(\"EN_EVALUACION\"));",
+         "pm.test(\"El promedio es 4.4\", () => pm.expect(r.promedio).to.eql(4.4));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{revisorAsignadoId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/formato",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/formato"
+       ]
+      },
+      "description": "Guarda los 5 criterios, de 1 a 5.\n\nSe puede guardar **incompleto**: el revisor puntua lo que lleva y vuelve luego. Lo que no se puede es *decidir* con el formato incompleto (invariante 10).\n\nLa primera vez que se guarda algo, la revision pasa de `ASIGNADA` a `EN_EVALUACION`.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "Agregar observación (201)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+         "const r = pm.response.json();",
+         "pm.test(\"La observación queda con su revisor y su fecha (invariante 11)\", function () {",
+         "    pm.expect(r.observaciones.length).to.be.at.least(1);",
+         "    const ultima = r.observaciones[r.observaciones.length - 1];",
+         "    pm.expect(ultima.revisorId).to.eql(pm.collectionVariables.get(\"revisorAsignadoId\"));",
+         "    pm.expect(ultima.fecha).to.be.a(\"string\");",
+         "    pm.expect(ultima.observacionId).to.be.a(\"string\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{revisorAsignadoId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/observaciones",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/observaciones"
+       ]
+      },
+      "description": "Agrega una observacion. Queda asociada a su revisor y su fecha (invariante 11).\n\nLas observaciones **solo se agregan**: no se editan ni se borran, porque son la evidencia de la revision y lo que vera el autor si la pregunta se rechaza.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"texto\": \"La pregunta esta bien construida. Solo sugiero precisar en el contexto que el broker es persistente, para que el desacoplamiento temporal quede evidente.\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "Decidir: APROBAR (200)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test(\"La revisión queda APROBADA\", () => pm.expect(r.estado).to.eql(\"APROBADA\"));",
+         "pm.test(\"Guarda la decisión y su fecha\", function () {",
+         "    pm.expect(r.decision).to.eql(\"APROBAR\");",
+         "    pm.expect(r.fechaDecision).to.be.a(\"string\");",
+         "});",
+         "console.log(\"Evento PreguntaAprobadaTecnicamente publicado; el banco deberia pasar a APROBADA\");"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{revisorAsignadoId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/decision",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/decision"
+       ]
+      },
+      "description": "Cierra la revision aprobando. Publica `PreguntaAprobadaTecnicamente` y la pregunta pasa a **APROBADA en el banco** sin tocar el banco.\n\nExige el formato completo y un promedio no inferior al minimo (3.0 por defecto).\n\nLa decision es definitiva: una revision decidida no se reabre.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"decision\": \"APROBAR\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "3. Flujo completo",
+   "description": "**Ejecutar esta carpeta con el Collection Runner.** Recorre el flujo de negocio de punta a punta entre los dos microservicios.\n\nLos pasos marcados como *(espera)* son asíncronos: dependen de que un evento viaje por RabbitMQ y de que el otro servicio lo consuma. Su script de test se repite a sí mismo con `setNextRequest` hasta que el estado cambie, para que la colección no falle por tiempos.\n\nAl terminar, la pregunta queda **PUBLICADA** y hay un `PreguntaPublicada` esperando en `simulacros.catalogo-preguntas`.",
+   "item": [
+    {
+     "name": "F1. Crear pregunta",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+         "const p = pm.response.json();",
+         "pm.expect(p.estado).to.eql(\"BORRADOR\");",
+         "pm.collectionVariables.set(\"flujoPreguntaId\", p.id);",
+         "pm.collectionVariables.set(\"intentosEnRevision\", \"0\");",
+         "pm.collectionVariables.set(\"intentosAprobada\", \"0\");",
+         "console.log(\"Pregunta del flujo:\", p.id);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Punto de partida del flujo: el autor crea la pregunta.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Patrones de integración\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "F2. Enviar a revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "pm.test(\"PENDIENTE_REVISION\", function () {",
+         "    pm.expect(pm.response.json().estado).to.eql(\"PENDIENTE_REVISION\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/enviar-a-revision",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/enviar-a-revision"
+       ]
+      },
+      "description": "Publica `PreguntaEnviadaARevision`. A partir de aqui no hay que hacer nada mas: el sistema se coordina solo."
+     },
+     "response": []
+    },
+    {
+     "name": "F3. (espera) El banco pasa a EN_REVISION",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// ── Paso ASINCRONO ──────────────────────────────────────────────────────────",
+         "// El cambio no ocurre en esta peticion: depende de que un evento viaje por",
+         "// RabbitMQ y de que el otro servicio lo consuma. Postman no tiene sleep, asi",
+         "// que esta peticion se repite a si misma con setNextRequest hasta que el estado",
+         "// sea el esperado. Sin esto, la coleccion fallaria por tiempos y no por errores.",
+         "const MAX_INTENTOS = 20;",
+         "let intentos = parseInt(pm.collectionVariables.get(\"intentosEnRevision\") || \"0\", 10);",
+         "",
+         "pm.test(\"La consulta responde 200\", function () {",
+         "    pm.response.to.have.status(200);",
+         "});",
+         "",
+         "const actual = pm.response.json().estado;",
+         "",
+         "if (actual === \"EN_REVISION\") {",
+         "    pm.collectionVariables.set(\"intentosEnRevision\", \"0\");",
+         "    pm.test(\"estado == EN_REVISION\", function () {",
+         "        pm.expect(actual).to.eql(\"EN_REVISION\");",
+         "    });",
+         "} else if (intentos < MAX_INTENTOS) {",
+         "    intentos += 1;",
+         "    pm.collectionVariables.set(\"intentosEnRevision\", String(intentos));",
+         "    console.log(`Todavia en ${actual}, esperando EN_REVISION... intento ${intentos}/${MAX_INTENTOS}`);",
+         "    // Espera ocupada de ~700 ms: es lo unico que hay en el sandbox de Postman.",
+         "    const hasta = Date.now() + 700;",
+         "    while (Date.now() < hasta) { /* esperando */ }",
+         "    postman.setNextRequest(\"F3. (espera) El banco pasa a EN_REVISION\");",
+         "} else {",
+         "    pm.collectionVariables.set(\"intentosEnRevision\", \"0\");",
+         "    pm.test(\"estado == EN_REVISION\", function () {",
+         "        pm.expect.fail(`Se agotaron ${MAX_INTENTOS} intentos y sigue en ${actual}`);",
+         "    });",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}"
+       ]
+      },
+      "description": "**Paso asincrono.** Aqui se ve el circuito completo funcionando solo:\n\n1. Banco publica `PreguntaEnviadaARevision` (RabbitMQ).\n2. Revision lo consume y llama a `ObtenerPregunta` (gRPC).\n3. Revision asigna revisor y publica `RevisorAsignado` (RabbitMQ).\n4. Banco lo consume y pasa la pregunta a `EN_REVISION`.\n\nEsta peticion se repite hasta ver el cambio."
+     },
+     "response": []
+    },
+    {
+     "name": "F4. Buscar la revisión creada",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "const rs = pm.response.json();",
+         "pm.test(\"La revisión existe\", () => pm.expect(rs.length).to.eql(1));",
+         "",
+         "const r = rs[0];",
+         "pm.collectionVariables.set(\"flujoRevisionId\", r.revisionId);",
+         "pm.collectionVariables.set(\"flujoRevisorId\", r.revisorId);",
+         "",
+         "pm.test(\"Tiene revisor asignado (invariante 9)\", function () {",
+         "    pm.expect(r.revisorId).to.be.a(\"string\").and.not.empty;",
+         "});",
+         "pm.test(\"Está ASIGNADA y con el snapshot completo\", function () {",
+         "    pm.expect(r.estado).to.eql(\"ASIGNADA\");",
+         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "});",
+         "console.log(\"Revision\", r.revisionId, \"asignada a\", r.revisorId);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones?preguntaId={{flujoPreguntaId}}",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones?preguntaId={{flujoPreguntaId}}"
+       ]
+      },
+      "description": "Busca en el `revision-service` la revision que se creo sola, y guarda su id y el revisor que el `AsignadorRevisor` eligio."
+     },
+     "response": []
+    },
+    {
+     "name": "F5. El revisor guarda el formato",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.expect(r.formatoCompleto).to.be.true;",
+         "pm.test(\"EN_EVALUACION con promedio 4.4\", function () {",
+         "    pm.expect(r.estado).to.eql(\"EN_EVALUACION\");",
+         "    pm.expect(r.promedio).to.eql(4.4);",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{flujoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/formato",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/formato"
+       ]
+      },
+      "description": "El revisor asignado puntua los 5 criterios. Promedio 4.4, por encima del minimo de 3.0.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "F6. El revisor agrega una observación",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+         "pm.expect(pm.response.json().observaciones.length).to.be.at.least(1);"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{flujoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/observaciones",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/observaciones"
+       ]
+      },
+      "description": "Una observacion, aunque la vaya a aprobar: sirve de constancia de lo revisado.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"texto\": \"Revisada de acuerdo con la rubrica. Sugiero precisar en el contexto que el broker es persistente, para que el desacoplamiento temporal quede evidente.\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "F7. El revisor APRUEBA",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "pm.test(\"Revisión APROBADA\", function () {",
+         "    pm.expect(pm.response.json().estado).to.eql(\"APROBADA\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{flujoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/decision",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/decision"
+       ]
+      },
+      "description": "Publica `PreguntaAprobadaTecnicamente`. El banco lo consumira y pasara la pregunta a `APROBADA`.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"decision\": \"APROBAR\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "F8. (espera) La pregunta queda APROBADA en el banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// ── Paso ASINCRONO ──────────────────────────────────────────────────────────",
+         "// El cambio no ocurre en esta peticion: depende de que un evento viaje por",
+         "// RabbitMQ y de que el otro servicio lo consuma. Postman no tiene sleep, asi",
+         "// que esta peticion se repite a si misma con setNextRequest hasta que el estado",
+         "// sea el esperado. Sin esto, la coleccion fallaria por tiempos y no por errores.",
+         "const MAX_INTENTOS = 20;",
+         "let intentos = parseInt(pm.collectionVariables.get(\"intentosAprobada\") || \"0\", 10);",
+         "",
+         "pm.test(\"La consulta responde 200\", function () {",
+         "    pm.response.to.have.status(200);",
+         "});",
+         "",
+         "const actual = pm.response.json().estado;",
+         "",
+         "if (actual === \"APROBADA\") {",
+         "    pm.collectionVariables.set(\"intentosAprobada\", \"0\");",
+         "    pm.test(\"estado == APROBADA\", function () {",
+         "        pm.expect(actual).to.eql(\"APROBADA\");",
+         "    });",
+         "} else if (intentos < MAX_INTENTOS) {",
+         "    intentos += 1;",
+         "    pm.collectionVariables.set(\"intentosAprobada\", String(intentos));",
+         "    console.log(`Todavia en ${actual}, esperando APROBADA... intento ${intentos}/${MAX_INTENTOS}`);",
+         "    // Espera ocupada de ~700 ms: es lo unico que hay en el sandbox de Postman.",
+         "    const hasta = Date.now() + 700;",
+         "    while (Date.now() < hasta) { /* esperando */ }",
+         "    postman.setNextRequest(\"F8. (espera) La pregunta queda APROBADA en el banco\");",
+         "} else {",
+         "    pm.collectionVariables.set(\"intentosAprobada\", \"0\");",
+         "    pm.test(\"estado == APROBADA\", function () {",
+         "        pm.expect.fail(`Se agotaron ${MAX_INTENTOS} intentos y sigue en ${actual}`);",
+         "    });",
+         "}"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}"
+       ]
+      },
+      "description": "**Paso asincrono.** El banco consume `PreguntaAprobadaTecnicamente` y mueve la pregunta a `APROBADA`."
+     },
+     "response": []
+    },
+    {
+     "name": "F9. El administrador publica",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "pm.test(\"PUBLICADA\", function () {",
+         "    pm.expect(pm.response.json().estado).to.eql(\"PUBLICADA\");",
+         "});",
+         "console.log(\"Listo: hay un PreguntaPublicada esperando en simulacros.catalogo-preguntas\");",
+         "console.log(\"Compruebalo en http://localhost:15672 -> Queues -> simulacros.catalogo-preguntas\");"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/publicar"
+       ]
+      },
+      "description": "Ultimo paso: la pregunta queda disponible para los simulacros y se emite `PreguntaPublicada` con la pregunta completa hacia `simulacros.catalogo-preguntas`.\n\nEse mensaje se queda en la cola esperando al futuro `simulacros-service`. Se puede ver en la consola de RabbitMQ."
+     },
+     "response": []
+    },
+    {
+     "name": "F10. Historial completo",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "const h = pm.response.json();",
+         "pm.test(\"Las 5 transiciones del ciclo de vida\", function () {",
+         "    pm.expect(h.map(c => c.estadoNuevo)).to.eql([",
+         "        \"BORRADOR\", \"PENDIENTE_REVISION\", \"EN_REVISION\", \"APROBADA\", \"PUBLICADA\"]);",
+         "});",
+         "console.log(h.map(c => `${c.estadoAnterior || \"(nueva)\"} -> ${c.estadoNuevo}`).join(\"\\n\"));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/historial",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/historial"
+       ]
+      },
+      "description": "Cierre del flujo: la traza de las 5 transiciones por las que paso la pregunta, con quien las provoco y por que."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "4. Casos inválidos",
+   "description": "Cada petición de esta carpeta **debe fallar**, y el test comprueba que falle con el código correcto y con un cuerpo Problem Details (RFC 7807).\n\nEs la parte que demuestra que las invariantes del Taller 1 están realmente implementadas y no solo documentadas.\n\n| Código | Cuándo |\n|---|---|\n| 400 | El contenido incumple una regla del dominio |\n| 403 | El rol no aplica, o no eres el autor / el revisor asignado |\n| 404 | El recurso no existe |\n| 409 | Transición de estado no permitida (invariante 6) |",
+   "item": [
+    {
+     "name": "Preparar: crear una pregunta en BORRADOR",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+         "const p = pm.response.json();",
+         "pm.expect(p.estado).to.eql(\"BORRADOR\");",
+         "pm.collectionVariables.set(\"invalidoPreguntaId\", p.id);",
+         "console.log(\"Pregunta para los casos invalidos:\", p.id, \"(BORRADOR)\");"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Los casos invalidos que necesitan una pregunta **en BORRADOR** usan esta, no `{{preguntaId}}`.\n\nEl motivo: al correr la coleccion entera, las carpetas anteriores dejan `{{preguntaId}}` en PUBLICADA, y entonces un caso como *publicar algo que no esta APROBADA* dejaria de probar lo que dice probar. Crear aqui una pregunta propia hace esta carpeta independiente del orden de ejecucion.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Casos límite\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "400 - Solo 3 distractores (invariante 1)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});",
+         "",
+         "pm.test(\"El error cita la invariante 1\", function () {",
+         "    const errores = pm.response.json().errores.join(\" | \");",
+         "    pm.expect(errores).to.include(\"Invariante 1\");",
+         "    pm.expect(errores).to.include(\"exactamente 5 opciones\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Una pregunta Saber Pro tiene exactamente 5 opciones: 4 distractores y 1 correcta. Esta manda solo 4 opciones.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "400 - 'Todas las anteriores' (invariante 2)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});",
+         "",
+         "pm.test(\"El error cita la invariante 2\", function () {",
+         "    const errores = pm.response.json().errores.join(\" | \");",
+         "    pm.expect(errores).to.include(\"Invariante 2\");",
+         "    pm.expect(errores).to.include(\"formula prohibida\".replace(\"formula\", \"f\\u00f3rmula\"));",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Las formulas del tipo *todas / ninguna de las anteriores* estan prohibidas: convierten la pregunta en un acertijo de estrategia en vez de una medicion de la competencia.\n\nLa comprobacion normaliza tildes, mayusculas y espacios, asi que `TODAS LAS ANTERIORES` o `Todás  las   Anteriores` caen igual.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "400 - Opción demasiado corta (invariante 3)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+         "pm.test(\"El error cita la invariante 3\", function () {",
+         "    pm.expect(pm.response.json().errores.join(\" | \")).to.include(\"Invariante 3\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Las opciones tienen una longitud minima configurable (5 caracteres sin espacios por defecto): un distractor de dos letras delata la respuesta.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "400 - Sin contexto (invariante 4)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "Toda pregunta Saber Pro necesita un contexto (la situacion a analizar) y una pregunta directa (el interrogante). Los dos son obligatorios.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "403 - Un ESTUDIANTE no puede publicar",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"403 Forbidden\", () => pm.response.to.have.status(403));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});",
+         "",
+         "pm.test(\"Dice qué rol haría falta\", function () {",
+         "    pm.expect(pm.response.json().detail).to.include(\"ADMINISTRADOR\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{estudianteId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ESTUDIANTE",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/publicar"
+       ]
+      },
+      "description": "El rol se comprueba en la capa de interfaces: publicar es del `ADMINISTRADOR`.\n\n**Respuesta esperada:** `403`, con el rol que haria falta en el `detail`."
+     },
+     "response": []
+    },
+    {
+     "name": "403 - Editar la pregunta de otro autor (invariante 7)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"403 Forbidden\", () => pm.response.to.have.status(403));",
+         "pm.test(\"El mensaje cita la invariante 7\", function () {",
+         "    pm.expect(pm.response.json().detail).to.include(\"Invariante 7\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{otroAutorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}"
+       ]
+      },
+      "description": "Solo el autor edita su pregunta. Esta comprobacion la hace el **agregado**, no el controlador: depende del estado del dominio, no del transporte.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Intento de edición ajena\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "401 - Sin cabeceras de usuario (banco)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"401 Unauthorized\", () => pm.response.to.have.status(401));",
+         "pm.test(\"Dice que no se pudo identificar al usuario\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo.title).to.include(\"No se pudo identificar\");",
+         "    pm.expect(cuerpo.errores.join(\" \")).to.include(\"X-Usuario-Id\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}"
+       ]
+      },
+      "description": "Mientras no exista autenticacion real, cada peticion debe declarar quien la hace.\n\nSin las cabeceras la respuesta es **401**: no sabemos quien eres. El **403** se reserva para cuando si sabemos quien eres y tu rol no alcanza."
+     },
+     "response": []
+    },
+    {
+     "name": "401 - Sin cabeceras de usuario (revisión)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"401 Unauthorized\", () => pm.response.to.have.status(401));",
+         "pm.test(\"Dice que no se pudo identificar al usuario\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo.title).to.include(\"No se pudo identificar\");",
+         "    pm.expect(cuerpo.errores.join(\" \")).to.include(\"X-Usuario-Id\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones"
+       ]
+      },
+      "description": "El mismo criterio en el otro servicio: **401** cuando faltan las cabeceras.\n\nLos dos servicios responden igual, con el mismo formato Problem Details."
+     },
+     "response": []
+    },
+    {
+     "name": "404 - Pregunta que no existe",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/00000000-0000-4000-8000-000000000000",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/00000000-0000-4000-8000-000000000000"
+       ]
+      },
+      "description": "Un UUID valido que no corresponde a ninguna pregunta."
+     },
+     "response": []
+    },
+    {
+     "name": "409 - Publicar una pregunta en BORRADOR",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});",
+         "",
+         "pm.test(\"Dice desde dónde sí se puede\", function () {",
+         "    pm.expect(pm.response.json().detail).to.include(\"Transiciones permitidas\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/publicar"
+       ]
+      },
+      "description": "La maquina de estados del agregado `Pregunta` (invariante 6) solo permite `APROBADA -> PUBLICADA`. Cualquier otra transicion es 409.\n\nUsa la pregunta que crea la primera peticion de esta carpeta, que esta en `BORRADOR`: asi el caso no depende de en que estado dejaron las carpetas anteriores a `{{preguntaId}}`."
+     },
+     "response": []
+    }
+   ]
+  }
+ ],
+ "variable": [
+  {
+   "key": "preguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "preguntaBorradorId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "revisionId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "revisorAsignadoId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "revisorNuevoId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "invalidoPreguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "flujoPreguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "flujoRevisionId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "flujoRevisorId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "intentosEnRevision",
+   "value": "0",
+   "type": "string"
+  },
+  {
+   "key": "intentosAprobada",
+   "value": "0",
+   "type": "string"
+  },
+  {
+   "key": "intentosRevisionCreada",
+   "value": "0",
+   "type": "string"
+  }
+ ]
+}

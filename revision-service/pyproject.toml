@@ -1,0 +1,50 @@
+# Configuración de las herramientas del revision-service.
+#
+# Las dependencias NO van aquí: están en requirements.txt y requirements-dev.txt
+# con versiones fijas.
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# Los tests asíncronos no necesitan marcarse uno a uno.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"
+markers = [
+    "integracion: necesita PostgreSQL, RabbitMQ o el banco levantados",
+]
+
+# ── import-linter: el equivalente de ArchUnit para Python ───────────────────
+# Verifica las reglas de Clean Architecture en cada build. Sin esto, la primera
+# vez que alguien necesite "solo un import rápido" en el dominio, la separación
+# se pierde para siempre.
+[tool.importlinter]
+root_package = "app"
+# Hace falta para poder prohibir paquetes externos (fastapi, sqlalchemy...) y no
+# solo modulos de la propia aplicacion.
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Las capas van en orden: interfaces, infraestructura, aplicacion, dominio"
+type = "layers"
+# Apiladas, no hermanas: interfaces es el punto de composicion y cablea las
+# implementaciones de infraestructura. Lo que el contrato impide es lo que
+# importa: que aplicacion mire hacia afuera y que el dominio dependa de algo.
+layers = [
+    "app.interfaces",
+    "app.infraestructura",
+    "app.aplicacion",
+    "app.dominio",
+]
+
+[[tool.importlinter.contracts]]
+name = "El dominio es Python puro, sin frameworks"
+type = "forbidden"
+source_modules = ["app.dominio"]
+forbidden_modules = [
+    "fastapi",
+    "sqlalchemy",
+    "pydantic",
+    "aio_pika",
+    "grpc",
+]

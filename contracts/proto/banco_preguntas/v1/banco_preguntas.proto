@@ -1,0 +1,142 @@
+// =============================================================================
+// Contrato gRPC del Bounded Context "Banco de Preguntas".
+//
+// Es la comunicación SÍNCRONA entre microservicios del sistema: el
+// revision-service lo usa para traerse el contenido de la pregunta que va a
+// evaluar, y el futuro simulacros-service lo usará para armar sus simulacros
+// con las preguntas ya PUBLICADAS.
+//
+// Servidor: banco-preguntas-service, puerto 9091, con Server Reflection activo
+//           (para poder explorarlo con grpcurl o Postman sin cargar el .proto).
+//
+// REGLA IMPORTANTE: los números de campo NUNCA se cambian ni se reutilizan.
+// Para agregar un campo se usa el siguiente número libre; para quitar uno se
+// marca como `reserved`. Cualquier cambio aquí se anota en docs/decisiones.md.
+// =============================================================================
+
+syntax = "proto3";
+
+package saberpro.banco.v1;
+
+option java_multiple_files = true;
+option java_package = "co.edu.unicauca.saberpro.banco.grpc.v1";
+
+// Operaciones de solo lectura que el banco de preguntas expone a los demás
+// microservicios. No hay operaciones de escritura por gRPC: crear, editar y
+// cambiar el estado de una pregunta se hace por REST o por eventos, para que
+// el agregado Pregunta tenga un único camino de modificación.
+service BancoPreguntas {
+
+  // Devuelve una pregunta completa por su identificador.
+  //
+  // Lo usa el revision-service al consumir PreguntaEnviadaARevision, para
+  // guardar el snapshot que evaluará el revisor. Incluye `es_correcta` en cada
+  // opción porque el revisor necesita verificar la invariante de unicidad de la
+  // respuesta correcta.
+  //
+  // Errores:
+  //   NOT_FOUND        — no existe una pregunta con ese id.
+  //   INVALID_ARGUMENT — `pregunta_id` vacío o no es un UUID válido.
+  rpc ObtenerPregunta (ObtenerPreguntaRequest) returns (PreguntaMensaje);
+
+  // Devuelve preguntas en estado PUBLICADA, opcionalmente filtradas.
+  //
+  // Pensado para el simulacros-service. Un filtro vacío significa "sin filtrar
+  // por ese criterio"; `limite = 0` aplica el valor por defecto de 50.
+  //
+  // Errores:
+  //   INVALID_ARGUMENT — `limite` negativo o `nivel_dificultad` desconocido.
+  rpc ListarPreguntasPublicadas (ListarPreguntasPublicadasRequest) returns (ListaPreguntasMensaje);
+}
+
+// Petición de ObtenerPregunta.
+message ObtenerPreguntaRequest {
+  // Identificador de la pregunta (UUID en texto). Obligatorio.
+  // Ejemplo: "3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c".
+  string pregunta_id = 1;
+}
+
+// Petición de ListarPreguntasPublicadas. Todos los filtros son opcionales y se
+// combinan con AND; una cadena vacía significa "no filtrar por este campo".
+message ListarPreguntasPublicadasRequest {
+  // Código de la competencia Saber Pro. Ejemplo: "RC" (Razonamiento
+  // Cuantitativo), "CE" (Competencias Ciudadanas), "ING-SOFT".
+  string competencia_codigo = 1;
+
+  // Tema exacto dentro de la competencia. Ejemplo: "Arquitectura de Software".
+  string tema = 2;
+
+  // Nivel de dificultad. Valores válidos: "BAJO", "MEDIO", "ALTO".
+  string nivel_dificultad = 3;
+
+  // Máximo de preguntas a devolver. 0 = usar el valor por defecto (50).
+  int32 limite = 4;
+}
+
+// Una de las 5 opciones de respuesta de una pregunta.
+// Corresponde al Value Object `Opcion` del dominio.
+message OpcionMensaje {
+  // Texto de la opción tal como lo ve el estudiante.
+  string texto = 1;
+
+  // true en la única opción correcta; false en los 4 distractores
+  // (invariante 1 del agregado Pregunta).
+  bool es_correcta = 2;
+}
+
+// Representación de lectura del Aggregate Root `Pregunta`.
+//
+// Es un DTO de transporte, NO la entidad de dominio: se arma en la capa de
+// infraestructura a partir del agregado. Los Value Objects del dominio se
+// aplanan aquí a tipos primitivos (por ejemplo `competencia` se parte en
+// `competencia_codigo` y `competencia_nombre`) para que cualquier lenguaje
+// pueda consumirlos sin conocer el modelo interno del banco.
+message PreguntaMensaje {
+  // Identificador de la pregunta (UUID en texto).
+  string id = 1;
+
+  // Identificador del usuario AUTOR que la creó (UUID en texto).
+  string autor_id = 2;
+
+  // Situación o caso que el estudiante debe analizar (invariante 4).
+  string contexto = 3;
+
+  // El interrogante concreto que se le plantea al estudiante (invariante 4).
+  string pregunta_directa = 4;
+
+  // Exactamente 5 opciones: 4 distractores y 1 correcta (invariante 1).
+  repeated OpcionMensaje opciones = 5;
+
+  // Explicación de por qué la opción correcta lo es.
+  string justificacion = 6;
+
+  // Referencias bibliográficas que respaldan la pregunta. Puede venir vacía.
+  repeated string bibliografia = 7;
+
+  // Código de la competencia evaluada. Ejemplo: "ING-SOFT".
+  string competencia_codigo = 8;
+
+  // Nombre legible de la competencia.
+  // Ejemplo: "Diseño de Software y Arquitectura".
+  string competencia_nombre = 9;
+
+  // Tema dentro de la competencia. Ejemplo: "Arquitectura de Software".
+  string tema = 10;
+
+  // Subtema dentro del tema. Ejemplo: "Microservicios".
+  string subtema = 11;
+
+  // Nivel de dificultad: "BAJO", "MEDIO" o "ALTO".
+  string nivel_dificultad = 12;
+
+  // Estado del ciclo de vida: "BORRADOR", "PENDIENTE_REVISION", "EN_REVISION",
+  // "APROBADA", "PUBLICADA" o "ARCHIVADA".
+  string estado = 13;
+}
+
+// Respuesta de ListarPreguntasPublicadas.
+message ListaPreguntasMensaje {
+  // Preguntas encontradas. Lista vacía si ninguna cumple los filtros;
+  // eso NO es un error.
+  repeated PreguntaMensaje preguntas = 1;
+}

@@ -1,0 +1,292 @@
+# =============================================================================
+# Infraestructura del Taller 2 — Banco de Preguntas Saber Pro.
+#
+# FASE 1: aqui solo esta la infraestructura (RabbitMQ y una base de datos por
+# microservicio). Los servicios `banco-preguntas-service` y `revision-service`
+# se agregan en las fases 2 y 3, con:
+#   build: { context: ., dockerfile: <servicio>/Dockerfile }
+# El contexto de build es la RAIZ del repositorio porque los servicios necesitan
+# `contracts/proto` para generar su codigo gRPC.
+#
+# Uso:
+#   .\scripts\levantar.ps1     levanta todo y espera a que este sano
+#   .\scripts\bajar.ps1        apaga (con -Volumenes borra tambien los datos)
+#
+# Las credenciales salen de `.env` (copiar de `.env.example`). Los valores por
+# defecto tras `:-` permiten levantar la infra aunque `.env` no exista todavia.
+# =============================================================================
+
+name: saberpro
+
+services:
+
+  # ── Broker de eventos de integracion ───────────────────────────────────────
+  # Un unico exchange topic `saberpro.eventos` al que publican los dos
+  # microservicios. La topologia completa se carga desde definitions.json.
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    container_name: saberpro-rabbitmq
+    hostname: saberpro-rabbitmq   # fijo: RabbitMQ guarda los datos por hostname
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"              # AMQP
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672" # consola web
+    volumes:
+      # De solo lectura: la topologia es un contrato versionado en git, no algo
+      # que el contenedor deba poder modificar.
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - rabbitmq-datos:/var/lib/rabbitmq
+    healthcheck:
+      # `check_running` confirma que el nodo arranco y `check_local_alarms` que no
+      # hay alarmas de memoria o disco que bloqueen las publicaciones. Van como dos
+      # invocaciones encadenadas porque rabbitmq-diagnostics acepta un unico
+      # comando por llamada (con ambos en la misma da "too many arguments").
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks:
+      - saberpro-net
+
+  # ── Base de datos del banco-preguntas-service ─────────────────────────────
+  # Persistencia PROPIA y exclusiva de este microservicio: ningun otro servicio
+  # se conecta aqui (requisito del taller y ADR 5).
+  postgres-banco:
+    image: postgres:16.10-alpine
+    container_name: saberpro-postgres-banco
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_BANCO_DB:-banco_preguntas}
+      POSTGRES_USER: ${POSTGRES_BANCO_USER:-banco}
+      POSTGRES_PASSWORD: ${POSTGRES_BANCO_PASSWORD:-banco}
+      # Acento e idioma espanol para ordenamientos y mensajes.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      # Se publica en 5433 para poder conectarse desde VS Code o DBeaver sin
+      # chocar con un PostgreSQL instalado en Windows (que usaria el 5432).
+      - "${POSTGRES_BANCO_PORT:-5433}:5432"
+    volumes:
+      - postgres-banco-datos:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_BANCO_USER:-banco} -d ${POSTGRES_BANCO_DB:-banco_preguntas}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - saberpro-net
+
+  # ── Base de datos del revision-service ────────────────────────────────────
+  postgres-revision:
+    image: postgres:16.10-alpine
+    container_name: saberpro-postgres-revision
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_REVISION_DB:-revision}
+      POSTGRES_USER: ${POSTGRES_REVISION_USER:-revision}
+      POSTGRES_PASSWORD: ${POSTGRES_REVISION_PASSWORD:-revision}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_REVISION_PORT:-5434}:5432"
+    volumes:
+      - postgres-revision-datos:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_REVISION_USER:-revision} -d ${POSTGRES_REVISION_DB:-revision}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - saberpro-net
+
+  # ── Microservicio del Bounded Context "Banco de Preguntas" ────────────────
+  # Java 21 + Spring Boot. Expone REST en 8081 y gRPC en 9091, publica eventos
+  # en RabbitMQ y consume la cola banco.resultados-revision.
+  banco-preguntas-service:
+    build:
+      # El contexto es la RAÍZ del repositorio porque el servicio genera su
+      # código gRPC desde contracts/proto/, que está fuera de su carpeta.
+      context: .
+      dockerfile: banco-preguntas-service/Dockerfile
+    image: saberpro/banco-preguntas-service:1.0.0
+    container_name: saberpro-banco-preguntas
+    restart: unless-stopped
+    depends_on:
+      # Sin esto el servicio arrancaría antes que PostgreSQL, Flyway fallaría y
+      # el contenedor entraría en un bucle de reinicios.
+      postgres-banco:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # La URL va en formato JDBC (la de .env.example está en formato URI, que
+      # es el que necesita el revision-service en Python).
+      BANCO_DATABASE_URL: jdbc:postgresql://postgres-banco:5432/${POSTGRES_BANCO_DB:-banco_preguntas}
+      POSTGRES_BANCO_USER: ${POSTGRES_BANCO_USER:-banco}
+      POSTGRES_BANCO_PASSWORD: ${POSTGRES_BANCO_PASSWORD:-banco}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-saberpro}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-saberpro}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      BANCO_HTTP_PORT: 8081
+      BANCO_GRPC_PORT: 9091
+      # Invariante 3: longitud mínima de una opción, sin contar espacios.
+      BANCO_OPCION_LONGITUD_MINIMA: ${BANCO_OPCION_LONGITUD_MINIMA:-5}
+    ports:
+      - "${BANCO_HTTP_PORT:-8081}:8081"   # API REST y Swagger UI
+      - "${BANCO_GRPC_PORT:-9091}:9091"   # servidor gRPC
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Generoso: la primera vez tiene que arrancar la JVM y correr Flyway.
+      start_period: 60s
+    networks:
+      - saberpro-net
+
+  # ── Microservicio del Bounded Context "Ciclo de Vida y Revisión" ──────────
+  # Python 3.13 + FastAPI. Consume PreguntaEnviadaARevision, llama al banco por
+  # gRPC para traerse el contenido, y publica el resultado de la revisión.
+  revision-service:
+    build:
+      # El contexto es la RAÍZ del repositorio porque el servicio genera su
+      # cliente gRPC desde contracts/proto/, que está fuera de su carpeta.
+      context: .
+      dockerfile: revision-service/Dockerfile
+    image: saberpro/revision-service:1.0.0
+    container_name: saberpro-revision
+    restart: unless-stopped
+    depends_on:
+      postgres-revision:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      # Depende del banco porque le llama por gRPC nada más recibir un evento.
+      # Aun así el servicio arranca si el banco tarda: el canal gRPC es perezoso
+      # y el cliente reintenta 2 veces. Esto solo ordena el arranque en frío.
+      banco-preguntas-service:
+        condition: service_healthy
+    environment:
+      ENTORNO: docker
+      # Formato SQLAlchemy con el driver asíncrono de psycopg 3 (distinto del
+      # JDBC que usa el banco, aunque apunten a motores iguales).
+      REVISION_DATABASE_URL: postgresql+psycopg://${POSTGRES_REVISION_USER:-revision}:${POSTGRES_REVISION_PASSWORD:-revision}@postgres-revision:5432/${POSTGRES_REVISION_DB:-revision}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-saberpro}:${RABBITMQ_PASSWORD:-saberpro}@rabbitmq:5672/
+      BANCO_GRPC_ADDR: banco-preguntas-service:9091
+      BANCO_GRPC_TIMEOUT_SEGUNDOS: ${BANCO_GRPC_TIMEOUT_SEGUNDOS:-3}
+      BANCO_GRPC_REINTENTOS: ${BANCO_GRPC_REINTENTOS:-3}
+      REVISION_HTTP_PORT: 8082
+      # Invariante 10: promedio mínimo del formato para poder aprobar.
+      REVISION_PROMEDIO_MINIMO_APROBACION: ${REVISION_PROMEDIO_MINIMO_APROBACION:-3.0}
+    ports:
+      - "${REVISION_HTTP_PORT:-8082}:8082"   # API REST y Swagger (/docs)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Margen para que Alembic aplique las migraciones antes del primer chequeo.
+      start_period: 40s
+    networks:
+      - saberpro-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TERCER MICROSERVICIO — listo para descomentar
+  #
+  # Lo implementan los companeros en una tecnologia distinta a Java y Python.
+  # Todo lo que necesita esta ya reservado: el puerto 8083, su base de datos en
+  # el 5435, su cola simulacros.catalogo-preguntas (que ya guarda los eventos
+  # que nadie ha consumido todavia) y sus variables en .env.example.
+  #
+  # Para activarlo: quitar el '# ' de las dos secciones de abajo y del volumen
+  # postgres-simulacros-datos al final del archivo, y ajustar lo que cambie
+  # segun la tecnologia elegida (el nombre del Dockerfile y el formato de
+  # DATABASE_URL, que depende del driver).
+  #
+  # Guia completa: docs/GUIA_INTEGRACION.md
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ── Base de datos del simulacros-service (reservada) ──────────────────────
+  # postgres-simulacros:
+  #   image: postgres:16.10-alpine
+  #   container_name: saberpro-postgres-simulacros
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_SIMULACROS_DB:-simulacros}
+  #     POSTGRES_USER: ${POSTGRES_SIMULACROS_USER:-simulacros}
+  #     POSTGRES_PASSWORD: ${POSTGRES_SIMULACROS_PASSWORD:-simulacros}
+  #     POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+  #   ports:
+  #     - "${POSTGRES_SIMULACROS_PORT:-5435}:5432"
+  #   volumes:
+  #     - postgres-simulacros-datos:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SIMULACROS_USER:-simulacros} -d ${POSTGRES_SIMULACROS_DB:-simulacros}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 15s
+  #   networks:
+  #     - saberpro-net
+
+  # ── Microservicio del Bounded Context "Simulacros y Reportes" ─────────────
+  # simulacros-service:
+  #   build:
+  #     # El contexto es la RAIZ del repositorio, igual que en los otros dos:
+  #     # hace falta para poder generar el cliente gRPC desde contracts/proto.
+  #     context: .
+  #     dockerfile: simulacros-service/Dockerfile
+  #   image: saberpro/simulacros-service:1.0.0
+  #   container_name: saberpro-simulacros
+  #   restart: unless-stopped
+  #   depends_on:
+  #     postgres-simulacros:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     # Solo hace falta si se llama al banco por gRPC o REST. Si el servicio
+  #     # se alimenta unicamente de eventos, esta dependencia se puede quitar:
+  #     # los eventos ya estan en la cola esperando.
+  #     banco-preguntas-service:
+  #       condition: service_healthy
+  #   environment:
+  #     # Ajustar el formato al que necesite el driver del lenguaje elegido.
+  #     DATABASE_URL: postgresql://${POSTGRES_SIMULACROS_USER:-simulacros}:${POSTGRES_SIMULACROS_PASSWORD:-simulacros}@postgres-simulacros:5432/${POSTGRES_SIMULACROS_DB:-simulacros}
+  #     RABBITMQ_URL: amqp://${RABBITMQ_USER:-saberpro}:${RABBITMQ_PASSWORD:-saberpro}@rabbitmq:5672/
+  #     BANCO_GRPC_ADDR: banco-preguntas-service:9091
+  #     BANCO_REST_URL: http://banco-preguntas-service:8081
+  #     SIMULACROS_HTTP_PORT: 8083
+  #   ports:
+  #     - "${SIMULACROS_HTTP_PORT:-8083}:8083"
+  #   healthcheck:
+  #     # Cambiar la ruta si el health check no esta en /health.
+  #     test: ["CMD-SHELL", "curl -fsS http://localhost:8083/health || exit 1"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 40s
+  #   networks:
+  #     - saberpro-net
+
+networks:
+  # Nombre fijo para que los companeros puedan conectar su simulacros-service
+  # con `docker network connect saberpro-net <contenedor>` o declarandola
+  # como red externa en su propio compose.
+  saberpro-net:
+    name: saberpro-net
+    driver: bridge
+
+volumes:
+  rabbitmq-datos:
+    name: saberpro-rabbitmq-datos
+  postgres-banco-datos:
+    name: saberpro-postgres-banco-datos
+  postgres-revision-datos:
+    name: saberpro-postgres-revision-datos
+  # postgres-simulacros-datos:
+  #   name: saberpro-postgres-simulacros-datos

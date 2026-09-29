@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saberpro.unicauca.edu.co/contracts/events/PreguntaPublicada.v1.schema.json",
+  "title": "Evento de integracion PreguntaPublicada (version 1)",
+  "description": "El administrador publico la pregunta. Lleva la pregunta COMPLETA (los mismos campos que PreguntaMensaje del .proto, en camelCase e incluyendo esCorrecta) para que el futuro simulacros-service arme su catalogo sin tener que llamar al banco.\n\nExchange: saberpro.eventos (topic, durable)\nRouting key: banco.pregunta.publicada\nProductor: banco-preguntas-service\nCola consumidora: simulacros.catalogo-preguntas\n\nPropiedades del mensaje AMQP: content_type=application/json, delivery_mode=2 (persistente), message_id=eventId, header eventType. Fechas en UTC ISO-8601.\n\nLos consumidores aplican la regla del lector tolerante: ignoran los campos que no conocen. Por eso este schema NO prohibe propiedades adicionales. Un cambio incompatible se publica como eventVersion 2 en un schema nuevo.",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "source",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "Identificador unico del evento. Se envia tambien como message_id de AMQP y es la clave de idempotencia: el consumidor lo guarda en su tabla eventos_procesados y descarta los repetidos."
+    },
+    "eventType": {
+      "type": "string",
+      "const": "PreguntaPublicada",
+      "description": "Nombre del evento. Se replica en el header eventType del mensaje."
+    },
+    "eventVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version del contrato del evento. Un cambio incompatible sube a 2."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento en que ocurrio el hecho de negocio, en UTC ISO-8601 (ejemplo: 2026-09-06T14:20:00Z). No es el momento de la publicacion en el broker."
+    },
+    "source": {
+      "type": "string",
+      "const": "banco-preguntas-service",
+      "description": "Microservicio que produjo el evento."
+    },
+    "data": {
+      "type": "object",
+      "description": "Carga util propia de este tipo de evento.",
+      "required": [
+        "pregunta"
+      ],
+      "properties": {
+        "pregunta": {
+          "type": "object",
+          "description": "Contenido completo de la pregunta publicada.",
+          "required": [
+            "id",
+            "autorId",
+            "contexto",
+            "preguntaDirecta",
+            "opciones",
+            "justificacion",
+            "competenciaCodigo",
+            "competenciaNombre",
+            "tema",
+            "subtema",
+            "nivelDificultad",
+            "estado"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "Identificador de la pregunta."
+            },
+            "autorId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "Usuario AUTOR que la creo."
+            },
+            "contexto": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Situacion a analizar (invariante 4)."
+            },
+            "preguntaDirecta": {
+              "type": "string",
+              "minLength": 1,
+              "description": "El interrogante planteado (invariante 4)."
+            },
+            "opciones": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "description": "Value Object Opcion del dominio.",
+                "required": [
+                  "texto",
+                  "esCorrecta"
+                ],
+                "properties": {
+                  "texto": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Texto de la opcion."
+                  },
+                  "esCorrecta": {
+                    "type": "boolean",
+                    "description": "true solo en la unica opcion correcta (invariante 1)."
+                  }
+                }
+              },
+              "description": "Exactamente 5 opciones: 4 distractores y 1 correcta (invariante 1)."
+            },
+            "justificacion": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Por que la opcion correcta lo es."
+            },
+            "bibliografia": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Referencias que respaldan la pregunta. Puede ir vacia."
+            },
+            "competenciaCodigo": {
+              "type": "string",
+              "description": "Codigo de la competencia evaluada."
+            },
+            "competenciaNombre": {
+              "type": "string",
+              "description": "Nombre legible de la competencia."
+            },
+            "tema": {
+              "type": "string",
+              "description": "Tema dentro de la competencia."
+            },
+            "subtema": {
+              "type": "string",
+              "description": "Subtema dentro del tema."
+            },
+            "nivelDificultad": {
+              "type": "string",
+              "enum": [
+                "BAJO",
+                "MEDIO",
+                "ALTO"
+              ],
+              "description": "Nivel de dificultad."
+            },
+            "estado": {
+              "type": "string",
+              "const": "PUBLICADA",
+              "description": "Estado del ciclo de vida. En este evento siempre PUBLICADA."
+            }
+          }
+        }
+      }
+    }
+  }
+}

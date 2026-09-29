@@ -1,0 +1,43 @@
+# El contexto de build es la raíz del repositorio (los servicios necesitan
+# contracts/proto). Se excluye todo lo que no hace falta dentro de la imagen.
+
+.git/
+.gitignore
+.gitattributes
+.editorconfig
+
+# Documentación y material de entrega
+docs/
+postman/
+scripts/
+*.md
+!simulacros-service/README.md
+
+# Secretos
+.env
+.env.local
+
+# Artefactos de build locales
+**/target/
+**/build/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/node_modules/
+**/dist/
+**/*.egg-info/
+
+# IDEs y sistema operativo
+.idea/
+.vscode/
+**/*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+**/logs/
+**/*.log

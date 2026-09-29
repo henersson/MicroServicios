@@ -1,0 +1,201 @@
+{
+  "_comentario": [
+    "Topologia de mensajeria del sistema, cargada al arrancar RabbitMQ mediante",
+    "load_definitions (ver rabbitmq.conf).",
+    "",
+    "IMPORTANTE: al cargar definiciones, RabbitMQ IGNORA RABBITMQ_DEFAULT_USER y",
+    "RABBITMQ_DEFAULT_PASS. Por eso este archivo declara users, vhosts y",
+    "permissions. Credenciales SOLO de desarrollo: saberpro / saberpro.",
+    "",
+    "Patron: un unico exchange topic 'saberpro.eventos' al que publican los dos",
+    "microservicios; cada consumidor tiene su cola con bindings por routing key.",
+    "Cada cola enruta sus mensajes fallidos a 'saberpro.eventos.dlx', que los",
+    "deposita en la cola '<cola>.dlq' correspondiente.",
+    "",
+    "Los consumidores ademas re-declaran su cola de forma idempotente al arrancar,",
+    "para no depender de que estas definiciones se hayan cargado."
+  ],
+
+  "users": [
+    {
+      "name": "saberpro",
+      "password": "saberpro",
+      "tags": ["administrator"]
+    }
+  ],
+
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+
+  "permissions": [
+    {
+      "user": "saberpro",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+
+  "topic_permissions": [],
+
+  "exchanges": [
+    {
+      "name": "saberpro.eventos",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "saberpro.eventos.dlx",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+
+  "queues": [
+    {
+      "name": "revision.preguntas-enviadas",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "saberpro.eventos.dlx",
+        "x-dead-letter-routing-key": "revision.preguntas-enviadas.dlq"
+      }
+    },
+    {
+      "name": "revision.preguntas-enviadas.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "banco.resultados-revision",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "saberpro.eventos.dlx",
+        "x-dead-letter-routing-key": "banco.resultados-revision.dlq"
+      }
+    },
+    {
+      "name": "banco.resultados-revision.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "simulacros.catalogo-preguntas",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "saberpro.eventos.dlx",
+        "x-dead-letter-routing-key": "simulacros.catalogo-preguntas.dlq"
+      }
+    },
+    {
+      "name": "simulacros.catalogo-preguntas.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+
+  "bindings": [
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "revision.preguntas-enviadas",
+      "destination_type": "queue",
+      "routing_key": "banco.pregunta.enviada-a-revision",
+      "arguments": {}
+    },
+
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "banco.resultados-revision",
+      "destination_type": "queue",
+      "routing_key": "revision.revisor.asignado",
+      "arguments": {}
+    },
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "banco.resultados-revision",
+      "destination_type": "queue",
+      "routing_key": "revision.pregunta.aprobada",
+      "arguments": {}
+    },
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "banco.resultados-revision",
+      "destination_type": "queue",
+      "routing_key": "revision.pregunta.rechazada",
+      "arguments": {}
+    },
+
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "simulacros.catalogo-preguntas",
+      "destination_type": "queue",
+      "routing_key": "banco.pregunta.publicada",
+      "arguments": {}
+    },
+    {
+      "source": "saberpro.eventos",
+      "vhost": "/",
+      "destination": "simulacros.catalogo-preguntas",
+      "destination_type": "queue",
+      "routing_key": "banco.pregunta.archivada",
+      "arguments": {}
+    },
+
+    {
+      "source": "saberpro.eventos.dlx",
+      "vhost": "/",
+      "destination": "revision.preguntas-enviadas.dlq",
+      "destination_type": "queue",
+      "routing_key": "revision.preguntas-enviadas.dlq",
+      "arguments": {}
+    },
+    {
+      "source": "saberpro.eventos.dlx",
+      "vhost": "/",
+      "destination": "banco.resultados-revision.dlq",
+      "destination_type": "queue",
+      "routing_key": "banco.resultados-revision.dlq",
+      "arguments": {}
+    },
+    {
+      "source": "saberpro.eventos.dlx",
+      "vhost": "/",
+      "destination": "simulacros.catalogo-preguntas.dlq",
+      "destination_type": "queue",
+      "routing_key": "simulacros.catalogo-preguntas.dlq",
+      "arguments": {}
+    }
+  ],
+
+  "policies": [],
+  "parameters": [],
+  "global_parameters": []
+}

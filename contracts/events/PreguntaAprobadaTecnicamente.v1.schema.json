@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saberpro.unicauca.edu.co/contracts/events/PreguntaAprobadaTecnicamente.v1.schema.json",
+  "title": "Evento de integracion PreguntaAprobadaTecnicamente (version 1)",
+  "description": "El revisor asignado completo el formato de evaluacion y decidio APROBAR. El banco lo consume para pasar la pregunta de EN_REVISION a APROBADA.\n\nExchange: saberpro.eventos (topic, durable)\nRouting key: revision.pregunta.aprobada\nProductor: revision-service\nCola consumidora: banco.resultados-revision\n\nPropiedades del mensaje AMQP: content_type=application/json, delivery_mode=2 (persistente), message_id=eventId, header eventType. Fechas en UTC ISO-8601.\n\nLos consumidores aplican la regla del lector tolerante: ignoran los campos que no conocen. Por eso este schema NO prohibe propiedades adicionales. Un cambio incompatible se publica como eventVersion 2 en un schema nuevo.",
+  "type": "object",
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "occurredAt",
+    "source",
+    "data"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      "description": "Identificador unico del evento. Se envia tambien como message_id de AMQP y es la clave de idempotencia: el consumidor lo guarda en su tabla eventos_procesados y descarta los repetidos."
+    },
+    "eventType": {
+      "type": "string",
+      "const": "PreguntaAprobadaTecnicamente",
+      "description": "Nombre del evento. Se replica en el header eventType del mensaje."
+    },
+    "eventVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version del contrato del evento. Un cambio incompatible sube a 2."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento en que ocurrio el hecho de negocio, en UTC ISO-8601 (ejemplo: 2026-09-06T14:20:00Z). No es el momento de la publicacion en el broker."
+    },
+    "source": {
+      "type": "string",
+      "const": "revision-service",
+      "description": "Microservicio que produjo el evento."
+    },
+    "data": {
+      "type": "object",
+      "description": "Carga util propia de este tipo de evento.",
+      "required": [
+        "revisionId",
+        "preguntaId",
+        "revisorId",
+        "promedio"
+      ],
+      "properties": {
+        "revisionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "Revision que produjo la decision."
+        },
+        "preguntaId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "Pregunta aprobada."
+        },
+        "revisorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "description": "Revisor que decidio."
+        },
+        "promedio": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Promedio de los 5 criterios del formato de evaluacion. No se aprueba por debajo de 3.0 (invariante 10, configurable)."
+        }
+      }
+    }
+  }
+}

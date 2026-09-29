@@ -1,0 +1,75 @@
+# ── Secretos y entorno ────────────────────────────────────────────────────────
+.env
+.env.local
+*.env.local
+
+# ── Java / Maven ──────────────────────────────────────────────────────────────
+target/
+build/
+*.class
+*.jar
+!**/.mvn/wrapper/maven-wrapper.jar
+*.war
+*.ear
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties.bak
+hs_err_pid*
+replay_pid*
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+*.egg-info/
+.eggs/
+
+# ── Node (por si el 3er servicio o utilidades lo usan) ────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.settings/
+.project
+.classpath
+.factorypath
+
+# ── Sistema operativo ─────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ── Generados en tiempo de ejecución ─────────────────────────────────────────
+logs/
+*.log
+/tmp/
+generated/
+
+# ── revision-service ─────────────────────────────────────────────────────────
+# Código gRPC generado: es un artefacto derivado de contracts/proto, igual que
+# las clases Java que genera Maven en el banco. Se regenera con
+# scripts/generar-grpc.ps1 y dentro del Dockerfile.
+revision-service/app/infraestructura/grpc_cliente/generado/*_pb2.py
+revision-service/app/infraestructura/grpc_cliente/generado/*_pb2.pyi
+revision-service/app/infraestructura/grpc_cliente/generado/*_pb2_grpc.py

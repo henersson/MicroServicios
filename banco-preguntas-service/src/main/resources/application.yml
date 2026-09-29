@@ -1,0 +1,157 @@
+# =============================================================================
+# Configuración del banco-preguntas-service.
+#
+# Dos perfiles:
+#   local  (por defecto) — el servicio corre en VS Code y la infraestructura en
+#                          Docker, así que todo apunta a localhost.
+#   docker               — el servicio corre dentro de la red saberpro-net y
+#                          usa los nombres de los contenedores.
+#
+# Nada de credenciales quemadas: los valores tras ':' son solo los del entorno
+# de desarrollo y se pueden sobrescribir con variables de entorno.
+# =============================================================================
+
+spring:
+  application:
+    name: banco-preguntas-service
+  profiles:
+    default: local
+
+  jpa:
+    # El esquema lo crea Flyway, no Hibernate: una base de datos que se
+    # autogenera es imposible de versionar y de revisar en un pull request.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ── Servidor gRPC (contrato en contracts/proto) ──────────────────────────
+  grpc:
+    server:
+      port: ${BANCO_GRPC_PORT:9091}
+      reflection:
+        # Permite explorarlo con grpcurl o Postman sin cargar el .proto a mano.
+        enabled: true
+
+  rabbitmq:
+    listener:
+      simple:
+        # ACK manual: el mensaje no se confirma hasta que el cambio está
+        # guardado.
+        acknowledge-mode: manual
+        prefetch: 1
+        # Sin reintentos: cualquier fallo manda el mensaje a la DLQ, de donde se
+        # puede reprocesar cuando la causa este resuelta. El reintento automático
+        # de Spring aquí solo retrasaría el problema.
+        retry:
+          enabled: false
+    template:
+      mandatory: true
+
+server:
+  port: ${BANCO_HTTP_PORT:8081}
+  error:
+    include-message: never
+
+# ── Reglas de negocio configurables ─────────────────────────────────────────
+banco:
+  # Invariante 3: caracteres mínimos de una opción, sin contar espacios.
+  opcion-longitud-minima: ${BANCO_OPCION_LONGITUD_MINIMA:5}
+
+# ── Actuator: solo lo necesario, nada de exponerlo todo ─────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    nombre: banco-preguntas-service
+    descripcion: Bounded Context Banco de Preguntas — Taller 2 Arquitectura de Microservicios
+    universidad: Universidad del Cauca
+
+# ── Swagger UI y OpenAPI ────────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+logging:
+  level:
+    co.edu.unicauca.saberpro.banco: INFO
+
+---
+# ── Perfil LOCAL: servicio fuera de Docker, infraestructura en Docker ───────
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: ${BANCO_DATABASE_URL:jdbc:postgresql://localhost:5433/banco_preguntas}
+    username: ${POSTGRES_BANCO_USER:banco}
+    password: ${POSTGRES_BANCO_PASSWORD:banco}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:saberpro}
+    password: ${RABBITMQ_PASSWORD:saberpro}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+  grpc:
+    server:
+      port: ${BANCO_GRPC_PORT:9091}
+      reflection:
+        enabled: true
+
+logging:
+  level:
+    co.edu.unicauca.saberpro.banco: DEBUG
+
+---
+# ── Perfil DOCKER: todo dentro de la red saberpro-net ───────────────────────
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: ${BANCO_DATABASE_URL:jdbc:postgresql://postgres-banco:5432/banco_preguntas}
+    username: ${POSTGRES_BANCO_USER:banco}
+    password: ${POSTGRES_BANCO_PASSWORD:banco}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:rabbitmq}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:saberpro}
+    password: ${RABBITMQ_PASSWORD:saberpro}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+  grpc:
+    server:
+      port: 9091
+      reflection:
+        enabled: true

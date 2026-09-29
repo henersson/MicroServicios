@@ -1,0 +1,1920 @@
+{
+ "info": {
+  "name": "SaberPro — DEMO sustentación",
+  "description": "Colección preparada para la sustentación del Taller 2 de Arquitectura de\nMicroservicios. **Universidad del Cauca, 2026-2.**\n\nEstá pensada para proyectar: cada petición trae su documentación, sus pruebas y\nun visualizador con letra grande. Se manda cada petición en orden, de la 01 a la\n26, sin escribir nada: los identificadores se guardan solos en variables y los\npasos que dependen de un evento esperan por su cuenta.\n\n## Antes de empezar\n\nArranque limpio, desde la carpeta del repositorio:\n\n```powershell\npowershell -ExecutionPolicy Bypass -File .\\scripts\\bajar.ps1 -Volumenes\npowershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n```\n\nSelecciona arriba a la derecha el environment **SaberPro - local (Docker)**. Sin\nél, las peticiones no resuelven las direcciones.\n\n## Las dos guías\n\n| Documento | Para qué |\n|---|---|\n| `docs/GUIA_POSTMAN.md` | Cómo usar Postman desde cero: importar, seleccionar el environment, mandar una petición, ver el visualizador, crear la petición gRPC |\n| `docs/GUIA_DEMO.md` | El guion de la demostración: qué mandar, en qué orden, qué debe ver el profesor y qué hacer si algo falla |\n\n## Orden de uso\n\nSe manda **una petición cada vez, en orden**, con el botón **Send**. No hace\nfalta el Runner: ninguna petición depende de él. De la 01 a la 07 se pueden\nrepetir cuantas veces se quiera; de la 08 en adelante cada una usa lo que\nguardó la anterior, así que el orden importa.\n\nLas siglas C1–C6 son los criterios de la rúbrica; ver `docs/sustentacion.md`.\n\n| Carpeta | Criterio de la rúbrica | ¿Opcional? |\n|---|---|---|\n| 1 · El sistema está arriba | C2 | no |\n| 2 · REST y reglas del dominio | C1, C3 | no |\n| 3 · Evento + gRPC | C3, C4, C5 | no |\n| 4 · La revisión por pares | C1, C4 | no |\n| 5 · Publicación y el evento para el tercer microservicio | C4, C5 | no |\n| 6 · Seguridad y reglas del dominio | C1, C3 | no |\n| 7 · El camino de rechazo | C4, C5 | sí |\n| 8 · Un evento que falla no se pierde | C4 | sí |\n\nLas carpetas 7 y 8 son extras: se muestran si sobra tiempo o si el profesor\npregunta por el rechazo o por los fallos. La 8 termina vaciando la DLQ, así que\ndeja el sistema limpio.\n\nLas peticiones 01 a 07 se pueden repetir cuantas veces se quiera. De la 08 en\nadelante hay un orden: cada una usa lo que guardó la anterior.\n\n## Crear la petición gRPC (hay que hacerlo a mano una vez)\n\nPostman no permite importar peticiones gRPC desde un archivo de colección, así\nque hay que crearla. Va en la **carpeta 3, justo después de la 09**.\n\n1. Manda la petición **09** y copia el valor de la variable `demoPreguntaId`\n   (pestaña *Variables* de la colección, o el `console.log` de la 06).\n2. **New** (botón azul, arriba a la izquierda) → **gRPC**.\n3. En la URL escribe `localhost:9091`. **Sin `http://` delante**: con `http://`\n   no funciona.\n4. Marca la casilla **Use server reflection**. El servidor publica su propio\n   contrato, así que no hay que cargar el `.proto`.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el identificador del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**. Debe devolver la pregunta completa con sus 5 opciones.\n8. **Save** → guárdala en la carpeta *3 · Evento + gRPC*, después de la 09, con\n   el nombre `09b · gRPC ObtenerPregunta`.\n\nPara mostrar también los errores de gRPC:\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nEn proto3 un `false` y una cadena vacía no se serializan, así que las opciones\nincorrectas llegan sin el campo `es_correcta`. Es el comportamiento normal de\nprotobuf, no un error.\n\n## Si algo falla\n\n- **Una petición con espera agota los 20 s:** mira los logs con\n  `docker compose logs -f revision-service` y comprueba que los 5 contenedores\n  estén `healthy`.\n- **Todas las peticiones fallan:** casi siempre es el environment sin\n  seleccionar.\n- **Plan B:** `powershell -ExecutionPolicy Bypass -File .\\scripts\\prueba-e2e.ps1`\n  recorre lo mismo en un comando y muestra 24 comprobaciones.\n\nLa guía completa de la sustentación está en `docs/sustentacion.md`.\n",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+ },
+ "variable": [
+  {
+   "key": "demoPreguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoPreguntaTitulo",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoRevisionId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoRevisorId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoOtraPreguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoOtraRevisionId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoOtroRevisorId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoRechazoPreguntaId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoRechazoRevisionId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "demoRechazoRevisorId",
+   "value": "",
+   "type": "string"
+  }
+ ],
+ "item": [
+  {
+   "name": "1 · El sistema está arriba (C2)",
+   "description": "Los dos microservicios responden, cada uno con su base de datos, y la topología de RabbitMQ está cargada.",
+   "item": [
+    {
+     "name": "01 · Health del banco de preguntas",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const s = pm.response.json();",
+         "pm.test('El servicio esta UP', () => pm.expect(s.status).to.eql('UP'));",
+         "pm.test('La base de datos esta UP', () => pm.expect(s.components.db.status).to.eql('UP'));",
+         "pm.test('RabbitMQ esta UP', () => pm.expect(s.components.rabbit.status).to.eql('UP'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>banco-preguntas-service · Java 21 + Spring Boot</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">{{status}}</span></p><table><tr><th>Componente</th><th>Estado</th><th>Detalle</th></tr>{{#each componentes}}<tr><td>{{nombre}}</td><td><span class=\\\"pill {{#if ok}}ok{{else}}bad{{/if}}\\\">{{estado}}</span></td><td class=\\\"mut\\\">{{detalle}}</td></tr>{{/each}}</table></div>\", {",
+         "    status: s.status,",
+         "    componentes: [",
+         "        { nombre: 'Base de datos', estado: s.components.db.status,",
+         "          ok: s.components.db.status === 'UP',",
+         "          detalle: s.components.db.details.database },",
+         "        { nombre: 'RabbitMQ', estado: s.components.rabbit.status,",
+         "          ok: s.components.rabbit.status === 'UP',",
+         "          detalle: 'version ' + s.components.rabbit.details.version }",
+         "    ]",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlBanco}}/actuator/health",
+       "host": [
+        "{{urlBanco}}/actuator/health"
+       ]
+      },
+      "description": "**Qué hace**\n\nPregunta al `banco-preguntas-service` por su estado y por el de sus dependencias.\n\n**Qué debe ver el profesor**\n\n`UP` en el servicio, en su base de datos PostgreSQL y en la conexión con RabbitMQ.\n\n**Qué decir**\n\nEste es el microservicio en Java con Spring Boot. Actuator nos dice que está vivo y que ve su base de datos y el broker."
+     },
+     "response": []
+    },
+    {
+     "name": "02 · Health del servicio de revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const s = pm.response.json();",
+         "pm.test('El servicio esta UP', () => pm.expect(s.status).to.eql('UP'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>revision-service · Python 3.13 + FastAPI</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">{{status}}</span></p><table><tr><th>Servicio</th><td>{{servicio}}</td></tr><tr><th>Base de datos</th><td>postgres-revision, propia e independiente</td></tr></table></div>\", { status: s.status, servicio: s.servicio });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlRevision}}/health",
+       "host": [
+        "{{urlRevision}}/health"
+       ]
+      },
+      "description": "**Qué hace**\n\nPregunta al `revision-service` por su estado.\n\n**Qué debe ver el profesor**\n\n`UP`. Es un servicio distinto, escrito en otra tecnología y con su propia base de datos.\n\n**Qué decir**\n\nEste es el segundo microservicio, en Python con FastAPI. Tecnologías diferentes y bases separadas: ninguno se conecta a la del otro."
+     },
+     "response": []
+    },
+    {
+     "name": "03 · RabbitMQ: las 3 colas de negocio y sus 3 DLQ",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const colas = pm.response.json();",
+         "const nombres = colas.map(c => c.name);",
+         "['revision.preguntas-enviadas', 'banco.resultados-revision',",
+         " 'simulacros.catalogo-preguntas'].forEach(function (n) {",
+         "    pm.test('Existe la cola ' + n, () => pm.expect(nombres).to.include(n));",
+         "    pm.test('Existe su DLQ ' + n + '.dlq',",
+         "        () => pm.expect(nombres).to.include(n + '.dlq'));",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>RabbitMQ · exchange <code>saberpro.eventos</code></h2><table><tr><th>Cola</th><th>Mensajes</th><th>Consumidores</th><th>Tipo</th></tr>{{#each filas}}<tr><td><code>{{nombre}}</code></td><td class=\\\"big\\\">{{mensajes}}</td><td>{{consumidores}}</td><td><span class=\\\"pill {{clase}}\\\">{{tipo}}</span></td></tr>{{/each}}</table><p class=\\\"mut\\\">Un evento que falla acaba en la DLQ de su cola: no se pierde.</p></div>\", {",
+         "    filas: colas.map(function (c) {",
+         "        const esDlq = c.name.endsWith('.dlq');",
+         "        return { nombre: c.name, mensajes: c.messages, consumidores: c.consumers,",
+         "                 tipo: esDlq ? 'DLQ' : 'negocio',",
+         "                 clase: esDlq ? (c.messages > 0 ? 'bad' : 'mut') : 'info' };",
+         "    })",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/queues/%2F?columns=name,messages,messages_ready,consumers",
+       "host": [
+        "{{urlRabbitMQ}}/api/queues/%2F?columns=name,messages,messages_ready,consumers"
+       ]
+      },
+      "description": "**Qué hace**\n\nConsulta la API de administración de RabbitMQ y lista las colas con sus mensajes y sus consumidores.\n\n**Qué debe ver el profesor**\n\nLas 3 colas de negocio, cada una con su cola de mensajes fallidos (DLQ). Las dos primeras tienen un consumidor conectado; la del tercer microservicio no tiene ninguno todavía, así que sus eventos se quedan ahí sin consumir.\n\n**Qué decir**\n\nAquí está la mensajería: un exchange, 3 colas y 3 DLQ. La tercera guarda los eventos para el microservicio de simulacros, que aún no existe.",
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "04 · Revisores registrados en el servicio de revisión",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const revisores = pm.response.json();",
+         "pm.test('Hay al menos 2 revisores activos', function () {",
+         "    pm.expect(revisores.filter(r => r.activo).length).to.be.at.least(2);",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Revisores en la base de datos de revision-service</h2><table><tr><th>Nombre</th><th>Correo</th><th>Registrado</th><th>Estado</th></tr>{{#each filas}}<tr><td>{{nombre}}</td><td><code>{{correo}}</code></td><td class=\\\"mut\\\">{{fecha}}</td><td><span class=\\\"pill {{#if activo}}ok{{else}}mut{{/if}}\\\">{{#if activo}}activo{{else}}inactivo{{/if}}</span></td></tr>{{/each}}</table></div>\", {",
+         "    filas: revisores.map(r => ({ nombre: r.nombre, correo: r.correo,",
+         "        fecha: (r.registradoEn || '').substring(0, 10), activo: r.activo }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisores",
+       "host": [
+        "{{urlRevision}}/api/v1/revisores"
+       ]
+      },
+      "description": "**Qué hace**\n\nLista los revisores que el `revision-service` guarda en **su propia** base de datos.\n\n**Qué debe ver el profesor**\n\nTres revisores. Son datos de este servicio, no del banco.\n\n**Qué decir**\n\nEl servicio de revisión mantiene su propia lista de revisores. El banco no sabe nada de ellos, y aun así los dos trabajan juntos."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "2 · REST y reglas del dominio (C1, C3)",
+   "description": "La API REST del banco y las invariantes del Taller 1 funcionando: primero una pregunta que el dominio rechaza, después la buena.",
+   "item": [
+    {
+     "name": "05 · Crear una pregunta inválida → 400",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 400', () => pm.response.to.have.status(400));",
+         "const e = pm.response.json();",
+         "pm.test('El error viene en formato Problem Details', function () {",
+         "    ['type', 'title', 'status', 'detail', 'errores'].forEach(",
+         "        k => pm.expect(e).to.have.property(k));",
+         "});",
+         "const texto = e.errores.join(' | ');",
+         "pm.test('Cita la invariante 1', () => pm.expect(texto).to.include('Invariante 1'));",
+         "pm.test('Cita la invariante 2', () => pm.expect(texto).to.include('Invariante 2'));",
+         "pm.test('Cita la invariante 3', () => pm.expect(texto).to.include('Invariante 3'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>400 · La pregunta no cumple las reglas del banco</h2><p><span class=\\\"pill bad\\\">HTTP {{status}}</span> &nbsp; {{title}}</p><p class=\\\"mut\\\">{{detail}}</p><table><tr><th>#</th><th>Regla incumplida</th></tr>{{#each errores}}<tr><td>{{n}}</td><td>{{texto}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">Las devuelve todas juntas, no una por intento: el autor corrige en una sola pasada.</p></div>\", {",
+         "    status: e.status, title: e.title, detail: e.detail,",
+         "    errores: e.errores.map((t, i) => ({ n: i + 1, texto: t }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "**Qué hace**\n\nIntenta crear una pregunta con 3 distractores, una opción de dos letras y una opción del tipo «Todas las anteriores».\n\n**Qué debe ver el profesor**\n\nUn `400` con **tres** errores, cada uno citando la invariante que incumple: la 1 (exactamente 4 distractores y 1 correcta), la 2 (nada de «todas las anteriores») y la 3 (longitud mínima).\n\n**Qué decir**\n\nLas reglas no están en el controlador: las impone el agregado con el `ValidadorEstructural`. Y devuelve todos los errores a la vez.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "06 · Crear la pregunta válida → 201 BORRADOR",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 201', () => pm.response.to.have.status(201));",
+         "const p = pm.response.json();",
+         "pm.collectionVariables.set('demoPreguntaId', p.id);",
+         "pm.test('Nace en BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
+         "pm.test('Tiene 5 opciones', () => pm.expect(p.opciones).to.have.lengthOf(5));",
+         "pm.test('Solo una es correcta', function () {",
+         "    pm.expect(p.opciones.filter(o => o.esCorrecta)).to.have.lengthOf(1);",
+         "});",
+         "console.log('demoPreguntaId =', p.id);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>{{subtema}}</h2><p class=\\\"big\\\"><span class=\\\"pill {{#if esPublicada}}ok{{else}}{{#if esAprobada}}ok{{else}}{{#if esBorrador}}warn{{else}}info{{/if}}{{/if}}{{/if}}\\\">{{estado}}</span></p><table><tr><th>Pregunta</th><td>{{preguntaDirecta}}</td></tr><tr><th>Competencia</th><td>{{competenciaNombre}} (<code>{{competenciaCodigo}}</code>)</td></tr><tr><th>Nivel</th><td>{{nivelDificultad}}</td></tr><tr><th>Identificador</th><td><code>{{id}}</code></td></tr></table><h2>Opciones</h2><table><tr><th>#</th><th>Texto</th><th></th></tr>{{#each opciones}}<tr><td>{{n}}</td><td>{{texto}}</td><td>{{#if esCorrecta}}<span class=\\\"pill ok\\\">correcta</span>{{/if}}</td></tr>{{/each}}</table></div>\", {",
+         "    id: p.id, estado: p.estado, subtema: p.subtema,",
+         "    preguntaDirecta: p.preguntaDirecta,",
+         "    competenciaNombre: p.competenciaNombre, competenciaCodigo: p.competenciaCodigo,",
+         "    nivelDificultad: p.nivelDificultad,",
+         "    opciones: p.opciones.map((o, i) => ({ n: i + 1, texto: o.texto, esCorrecta: o.esCorrecta })),",
+         "    esPublicada: p.estado === 'PUBLICADA',\n    esAprobada: p.estado === 'APROBADA',\n    esBorrador: p.estado === 'BORRADOR',\n",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "**Qué hace**\n\nCrea la pregunta que vamos a seguir durante toda la demostración. Guarda su identificador en la variable `demoPreguntaId`.\n\n**Qué debe ver el profesor**\n\nUn `201` y la pregunta en estado `BORRADOR`, con sus 5 opciones y una sola marcada como correcta.\n\n**Qué decir**\n\nAhora sí pasa las cuatro invariantes de contenido. Nace en `BORRADOR`: mientras está ahí, solo le importa a su autor.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "07 · Consultar la pregunta",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('Sigue en BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
+         "pm.test('Es la pregunta de la demostracion', function () {",
+         "    pm.expect(p.id).to.eql(pm.collectionVariables.get('demoPreguntaId'));",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>{{subtema}}</h2><p class=\\\"big\\\"><span class=\\\"pill {{#if esPublicada}}ok{{else}}{{#if esAprobada}}ok{{else}}{{#if esBorrador}}warn{{else}}info{{/if}}{{/if}}{{/if}}\\\">{{estado}}</span></p><table><tr><th>Pregunta</th><td>{{preguntaDirecta}}</td></tr><tr><th>Competencia</th><td>{{competenciaNombre}} (<code>{{competenciaCodigo}}</code>)</td></tr><tr><th>Nivel</th><td>{{nivelDificultad}}</td></tr><tr><th>Identificador</th><td><code>{{id}}</code></td></tr></table><h2>Opciones</h2><table><tr><th>#</th><th>Texto</th><th></th></tr>{{#each opciones}}<tr><td>{{n}}</td><td>{{texto}}</td><td>{{#if esCorrecta}}<span class=\\\"pill ok\\\">correcta</span>{{/if}}</td></tr>{{/each}}</table></div>\", {",
+         "    id: p.id, estado: p.estado, subtema: p.subtema,",
+         "    preguntaDirecta: p.preguntaDirecta,",
+         "    competenciaNombre: p.competenciaNombre, competenciaCodigo: p.competenciaCodigo,",
+         "    nivelDificultad: p.nivelDificultad,",
+         "    opciones: p.opciones.map((o, i) => ({ n: i + 1, texto: o.texto, esCorrecta: o.esCorrecta })),",
+         "    esPublicada: p.estado === 'PUBLICADA',\n    esAprobada: p.estado === 'APROBADA',\n    esBorrador: p.estado === 'BORRADOR',\n",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nLee la pregunta que acabamos de crear, usando el identificador guardado.\n\n**Qué debe ver el profesor**\n\nLa pregunta completa con sus 5 opciones y su estado `BORRADOR`.\n\n**Qué decir**\n\nEl identificador se guardó solo en una variable; no hay que copiar nada a mano."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "3 · Evento + gRPC: los servicios se coordinan solos (C3, C4, C5)",
+   "description": "El corazón de la integración. El banco publica un evento, el servicio de revisión lo consume, llama al banco por gRPC para traerse la pregunta y responde con otro evento que el banco aplica.\n\n**Aquí va la petición gRPC**, justo después de la 09: los pasos para crearla están en la descripción de la colección.",
+   "item": [
+    {
+     "name": "08 · Enviar a revisión → PENDIENTE_REVISION",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('Pasa a PENDIENTE_REVISION',",
+         "    () => pm.expect(p.estado).to.eql('PENDIENTE_REVISION'));",
+         "console.log('Evento PreguntaEnviadaARevision publicado para', p.id);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Enviada a revisión</h2><p class=\\\"big\\\"><span class=\\\"pill info\\\">{{estado}}</span></p><p>El banco acaba de publicar el evento <code>PreguntaEnviadaARevision</code> en el exchange <code>saberpro.eventos</code>.</p><table><tr><th>Routing key</th><td><code>banco.pregunta.enviada-a-revision</code></td></tr><tr><th>Cola destino</th><td><code>revision.preguntas-enviadas</code></td></tr><tr><th>Pregunta</th><td><code>{{id}}</code></td></tr></table><p class=\\\"mut\\\">Desde aquí el autor no vuelve a intervenir: los dos servicios se coordinan por eventos.</p></div>\", { estado: p.estado, id: p.id });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/enviar-a-revision",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/enviar-a-revision"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl autor envía su pregunta al ciclo de revisión por pares. El banco valida el contenido otra vez, cambia el estado y publica `PreguntaEnviadaARevision`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. En la consola de RabbitMQ y en los logs se ve pasar el evento en ese instante.\n\n**Qué decir**\n\nEste es el momento en que los dos microservicios empiezan a hablar. El banco no llama a nadie: publica un evento y sigue con lo suyo."
+     },
+     "response": []
+    },
+    {
+     "name": "09 · La revisión que se creó sola, con el snapshot de gRPC",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// Espera a que el revision-service haya creado la revision.",
+         "// El cambio depende de un evento de RabbitMQ, asi que no es inmediato.",
+         "// Este script sondea cada segundo hasta 20 s y la peticion principal se",
+         "// envia cuando la condicion ya se cumple. Sin esto habria que reintentar",
+         "// a mano delante del profesor.",
+         "const MAXIMO_MS = 20000;",
+         "const PASO_MS = 1000;",
+         "const inicio = Date.now();",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlRevision') + '/api/v1/revisiones?preguntaId=' + pm.collectionVariables.get('demoPreguntaId'),",
+         "        method: 'GET',",
+         "        header: { 'X-Usuario-Id': pm.variables.get('administradorId'), 'X-Usuario-Rol': 'ADMINISTRADOR' }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try {",
+         "                const cuerpo = respuesta.json();",
+         "                listo = Array.isArray(cuerpo) && cuerpo.length > 0;",
+         "            } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('Listo tras ' + Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) {",
+         "            setTimeout(sondear, PASO_MS);",
+         "        } else {",
+         "            console.warn('Se agotaron ' + (MAXIMO_MS / 1000) + ' s de espera.');",
+         "        }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const revisiones = pm.response.json();",
+         "pm.test('La revision existe', () => pm.expect(revisiones.length).to.be.at.least(1));",
+         "const r = revisiones[0];",
+         "pm.collectionVariables.set('demoRevisionId', r.revisionId);",
+         "pm.collectionVariables.set('demoRevisorId', r.revisorId);",
+         "pm.test('Esta ASIGNADA', () => pm.expect(r.estado).to.eql('ASIGNADA'));",
+         "pm.test('Tiene revisor asignado (invariante 9)', function () {",
+         "    pm.expect(r.revisorId).to.be.a('string').and.not.empty;",
+         "});",
+         "pm.test('El snapshot llego completo por gRPC', function () {",
+         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "    pm.expect(r.snapshot.competenciaCodigo).to.eql('ING-SOFT');",
+         "});",
+         "console.log('demoRevisionId =', r.revisionId, '| revisor =', r.revisorId);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Revisión creada automáticamente</h2><p class=\\\"big\\\"><span class=\\\"pill info\\\">{{estado}}</span></p><table><tr><th>Revisión</th><td><code>{{revisionId}}</code></td></tr><tr><th>Revisor asignado</th><td><code>{{revisorId}}</code></td></tr><tr><th>Elegido por</th><td>AsignadorRevisor: menos carga, desempate por antigüedad, nunca el autor</td></tr></table><h2>Snapshot recibido por gRPC</h2><table><tr><th>Competencia</th><td>{{competencia}}</td></tr><tr><th>Opciones</th><td>{{cuantasOpciones}} de 5</td></tr></table><table><tr><th>#</th><th>Texto</th><th></th></tr>{{#each opciones}}<tr><td>{{n}}</td><td>{{texto}}</td><td>{{#if esCorrecta}}<span class=\\\"pill ok\\\">correcta</span>{{/if}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">Nadie creó esta revisión a mano: el servicio consumió el evento, llamó al banco por gRPC y guardó esta copia.</p></div>\", {",
+         "    estado: r.estado, revisionId: r.revisionId, revisorId: r.revisorId,",
+         "    competencia: r.snapshot.competenciaNombre,",
+         "    cuantasOpciones: r.snapshot.opciones.length,",
+         "    opciones: r.snapshot.opciones.map((o, i) => ({ n: i + 1, texto: o.texto,",
+         "        esCorrecta: o.esCorrecta }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones?preguntaId={{demoPreguntaId}}",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones?preguntaId={{demoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nBusca en el `revision-service` la revisión de nuestra pregunta. Antes de enviar la petición, el script espera a que exista, sondeando cada segundo.\n\nGuarda el revisor asignado en `demoRevisorId` y la revisión en `demoRevisionId`.\n\n**Qué debe ver el profesor**\n\nUna revisión en estado `ASIGNADA`, con un revisor que eligió el `AsignadorRevisor`, y el **snapshot** con las 5 opciones de la pregunta. Ese snapshot llegó por **gRPC** desde el banco.\n\n**Qué decir**\n\nNadie creó esta revisión: el servicio consumió el evento, llamó al banco por gRPC para traerse el contenido y eligió revisor él solo."
+     },
+     "response": []
+    },
+    {
+     "name": "10 · La pregunta ya está EN_REVISION en el banco",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// Espera a que el banco consuma RevisorAsignado y pase a EN_REVISION.",
+         "// El cambio depende de un evento de RabbitMQ, asi que no es inmediato.",
+         "// Este script sondea cada segundo hasta 20 s y la peticion principal se",
+         "// envia cuando la condicion ya se cumple. Sin esto habria que reintentar",
+         "// a mano delante del profesor.",
+         "const MAXIMO_MS = 20000;",
+         "const PASO_MS = 1000;",
+         "const inicio = Date.now();",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlBanco') + '/api/v1/preguntas/' + pm.collectionVariables.get('demoPreguntaId'),",
+         "        method: 'GET',",
+         "        header: { 'X-Usuario-Id': pm.variables.get('autorId'), 'X-Usuario-Rol': 'AUTOR' }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try {",
+         "                const cuerpo = respuesta.json();",
+         "                listo = cuerpo.estado === 'EN_REVISION';",
+         "            } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('Listo tras ' + Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) {",
+         "            setTimeout(sondear, PASO_MS);",
+         "        } else {",
+         "            console.warn('Se agotaron ' + (MAXIMO_MS / 1000) + ' s de espera.');",
+         "        }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('El banco paso solo a EN_REVISION',",
+         "    () => pm.expect(p.estado).to.eql('EN_REVISION'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>El banco cambió solo</h2><p class=\\\"big\\\"><span class=\\\"pill info\\\">{{estado}}</span></p><table><tr><th>Antes</th><td>PENDIENTE_REVISION</td></tr><tr><th>Ahora</th><td>{{estado}}</td></tr><tr><th>Por qué</th><td>consumió el evento <code>RevisorAsignado</code></td></tr></table><p class=\\\"mut\\\">Entre los dos estados han pasado tres cosas: un evento, una llamada gRPC y otro evento. Sin intervención de nadie.</p></div>\", { estado: p.estado });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nVuelve a leer la pregunta en el banco. El script espera a que el estado haya cambiado, sondeando cada segundo.\n\n**Qué debe ver el profesor**\n\nEstado `EN_REVISION`. El banco lo cambió al consumir el evento `RevisorAsignado` que publicó el servicio de revisión.\n\n**Qué decir**\n\nEl banco cambió solo. Entre `PENDIENTE_REVISION` y `EN_REVISION` ha habido un evento, una llamada gRPC y otro evento, y nadie tocó nada."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "4 · La revisión por pares (C1, C4)",
+   "description": "El trabajo del revisor sobre la revisión que se creó sola: el formato de evaluación, las observaciones y la decisión. Al aprobar, el banco se entera por un evento.",
+   "item": [
+    {
+     "name": "11 · Guardar el formato de evaluación → EN_EVALUACION",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test('Pasa a EN_EVALUACION', () => pm.expect(r.estado).to.eql('EN_EVALUACION'));",
+         "pm.test('El formato queda completo', () => pm.expect(r.formatoCompleto).to.be.true);",
+         "pm.test('El promedio llega al minimo de 3.0',",
+         "    () => pm.expect(r.promedio).to.be.at.least(3.0));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Formato de evaluación diligenciado</h2><p class=\\\"big\\\"><span class=\\\"pill info\\\">{{estado}}</span> &nbsp; promedio <span class=\\\"pill ok\\\">{{promedio}}</span></p><table><tr><th>Criterio</th><th>Puntaje</th></tr>{{#each criterios}}<tr><td>{{nombre}}</td><td class=\\\"big\\\">{{valor}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">La invariante 10 exige los 5 criterios y un promedio de al menos 3.0 para aprobar.</p></div>\", {",
+         "    estado: r.estado, promedio: r.promedio,",
+         "    criterios: Object.keys(r.formato).sort().map(",
+         "        k => ({ nombre: k.replace(/_/g, ' ').toLowerCase(), valor: r.formato[k] }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{demoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/formato",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/formato"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl revisor asignado puntúa los 5 criterios de la rúbrica, de 1 a 5.\n\n**Qué debe ver el profesor**\n\nLa revisión pasa a `EN_EVALUACION` y aparece el promedio calculado.\n\n**Qué decir**\n\nSolo el revisor asignado puede hacer esto, y lo comprueba el agregado. Los 5 criterios son la invariante 10.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 5,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "12 · Agregar una observación",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 201', () => pm.response.to.have.status(201));",
+         "const r = pm.response.json();",
+         "pm.test('Hay al menos una observacion',",
+         "    () => pm.expect(r.observaciones.length).to.be.at.least(1));",
+         "pm.test('La observacion guarda su revisor', function () {",
+         "    pm.expect(r.observaciones[0].revisorId).to.be.a('string').and.not.empty;",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Observación registrada</h2><table><tr><th>#</th><th>Observación</th><th>Revisor</th></tr>{{#each observaciones}}<tr><td>{{n}}</td><td>{{texto}}</td><td class=\\\"mut\\\">{{revisor}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">La invariante 11 exige que cada observación quede con su revisor y su fecha, y que haya al menos una para poder rechazar.</p></div>\", {",
+         "    observaciones: r.observaciones.map((o, i) => ({ n: i + 1, texto: o.texto,",
+         "        revisor: (o.revisorId || '').substring(0, 8) + '…' }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{demoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/observaciones",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/observaciones"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl revisor deja un comentario sobre la pregunta.\n\n**Qué debe ver el profesor**\n\nUn `201` y la observación en la lista, con su revisor y su fecha.\n\n**Qué decir**\n\nCada observación queda atada a quien la escribió y a cuándo: es la invariante 11. Para rechazar hace falta al menos una.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"texto\": \"La pregunta está bien construida y el distractor del teorema CAP es plausible. Sugiero precisar en el contexto cuántos servicios comparten hoy el esquema.\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "13 · Aprobar → revisión APROBADA",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test('La revision queda APROBADA', () => pm.expect(r.estado).to.eql('APROBADA'));",
+         "console.log('Evento PreguntaAprobadaTecnicamente publicado');",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Decisión del revisor</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">{{estado}}</span></p><table><tr><th>Decisión</th><td>{{decision}}</td></tr><tr><th>Promedio</th><td>{{promedio}}</td></tr><tr><th>Observaciones</th><td>{{cuantas}}</td></tr><tr><th>Evento publicado</th><td><code>PreguntaAprobadaTecnicamente</code></td></tr></table><p class=\\\"mut\\\">El evento va a la cola <code>banco.resultados-revision</code>, que el banco consume.</p></div>\", {",
+         "    estado: r.estado, decision: r.decision, promedio: r.promedio,",
+         "    cuantas: r.observaciones.length",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{demoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/decision",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/decision"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl revisor aprueba técnicamente la pregunta. El servicio comprueba la invariante 10 y publica `PreguntaAprobadaTecnicamente`.\n\n**Qué debe ver el profesor**\n\nLa revisión queda `APROBADA`. El evento sale hacia la cola `banco.resultados-revision`.\n\n**Qué decir**\n\nAl aprobar, este servicio publica un evento. No llama al banco: le avisa.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"decision\": \"APROBAR\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "14 · La pregunta queda APROBADA en el banco",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// Espera a que el banco consuma PreguntaAprobadaTecnicamente.",
+         "// El cambio depende de un evento de RabbitMQ, asi que no es inmediato.",
+         "// Este script sondea cada segundo hasta 20 s y la peticion principal se",
+         "// envia cuando la condicion ya se cumple. Sin esto habria que reintentar",
+         "// a mano delante del profesor.",
+         "const MAXIMO_MS = 20000;",
+         "const PASO_MS = 1000;",
+         "const inicio = Date.now();",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlBanco') + '/api/v1/preguntas/' + pm.collectionVariables.get('demoPreguntaId'),",
+         "        method: 'GET',",
+         "        header: { 'X-Usuario-Id': pm.variables.get('autorId'), 'X-Usuario-Rol': 'AUTOR' }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try {",
+         "                const cuerpo = respuesta.json();",
+         "                listo = cuerpo.estado === 'APROBADA';",
+         "            } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('Listo tras ' + Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) {",
+         "            setTimeout(sondear, PASO_MS);",
+         "        } else {",
+         "            console.warn('Se agotaron ' + (MAXIMO_MS / 1000) + ' s de espera.');",
+         "        }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('El banco paso solo a APROBADA',",
+         "    () => pm.expect(p.estado).to.eql('APROBADA'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>El banco aplicó la decisión</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">{{estado}}</span></p><table><tr><th>Antes</th><td>EN_REVISION</td></tr><tr><th>Ahora</th><td>{{estado}}</td></tr><tr><th>Por qué</th><td>consumió <code>PreguntaAprobadaTecnicamente</code></td></tr></table><p class=\\\"mut\\\">La decisión la tomó el revisor en el otro microservicio. El banco se enteró por un evento.</p></div>\", { estado: p.estado });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nLee la pregunta en el banco. El script espera a que el estado cambie.\n\n**Qué debe ver el profesor**\n\nEstado `APROBADA`, porque el banco consumió `PreguntaAprobadaTecnicamente`.\n\n**Qué decir**\n\nOtra vez sin intervención: la decisión se tomó en un microservicio y el otro la aplicó al recibir el evento."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "5 · Publicación y el evento para el tercer microservicio (C4, C5)",
+   "description": "El administrador publica la pregunta, se ve la trazabilidad completa y se comprueba que el evento quedó esperando en la cola del microservicio que todavía no existe.",
+   "item": [
+    {
+     "name": "15 · Publicar como ADMINISTRADOR → PUBLICADA",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('Queda PUBLICADA', () => pm.expect(p.estado).to.eql('PUBLICADA'));",
+         "pm.collectionVariables.set('demoPreguntaTitulo', p.preguntaDirecta);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Publicada</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">{{estado}}</span></p><table><tr><th>Quién</th><td>ADMINISTRADOR</td></tr><tr><th>Evento publicado</th><td><code>PreguntaPublicada</code></td></tr><tr><th>Routing key</th><td><code>banco.pregunta.publicada</code></td></tr><tr><th>Cola destino</th><td><code>simulacros.catalogo-preguntas</code></td></tr></table><p class=\\\"mut\\\">Ese evento lleva la pregunta completa, para que el tercer microservicio arme su catálogo solo escuchando.</p></div>\", { estado: p.estado });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/publicar"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl administrador publica la pregunta ya aprobada. El banco emite `PreguntaPublicada` con la pregunta completa.\n\n**Qué debe ver el profesor**\n\nEstado `PUBLICADA`. El evento sale hacia `simulacros.catalogo-preguntas`.\n\n**Qué decir**\n\nPublicar es del administrador, no del autor ni del revisor. Y al publicar, el banco avisa al futuro servicio de simulacros."
+     },
+     "response": []
+    },
+    {
+     "name": "16 · Historial completo de la pregunta",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const h = pm.response.json();",
+         "pm.test('Hay 5 transiciones', () => pm.expect(h).to.have.lengthOf(5));",
+         "const estados = h.map(c => c.estadoNuevo).join(' -> ');",
+         "pm.test('El recorrido es el esperado', function () {",
+         "    pm.expect(estados).to.eql(",
+         "        'BORRADOR -> PENDIENTE_REVISION -> EN_REVISION -> APROBADA -> PUBLICADA');",
+         "});",
+         "console.log(estados);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Historial de la pregunta</h2><table><tr><th>#</th><th>De</th><th>A</th><th>Quién</th><th>Motivo</th></tr>{{#each filas}}<tr><td>{{n}}</td><td class=\\\"mut\\\">{{anterior}}</td><td><span class=\\\"pill {{clase}}\\\">{{nuevo}}</span></td><td class=\\\"mut\\\">{{usuario}}</td><td>{{motivo}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">Trazabilidad completa: quién movió la pregunta, cuándo y por qué. Solo el administrador puede verlo.</p></div>\", {",
+         "    filas: h.map(function (c, i) {",
+         "        const clases = { PUBLICADA: 'ok', APROBADA: 'ok', BORRADOR: 'warn' };",
+         "        return { n: i + 1, anterior: c.estadoAnterior || '—',",
+         "                 nuevo: c.estadoNuevo, motivo: c.motivo,",
+         "                 usuario: (c.usuarioId || '').substring(0, 8) + '…',",
+         "                 clase: clases[c.estadoNuevo] || 'info' };",
+         "    })",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{administradorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ADMINISTRADOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/historial",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/historial"
+       ]
+      },
+      "description": "**Qué hace**\n\nPide la trazabilidad de la pregunta. Solo el administrador puede consultarla, porque revela qué revisor tomó cada decisión.\n\n**Qué debe ver el profesor**\n\nLas 5 transiciones en orden: `BORRADOR`, `PENDIENTE_REVISION`, `EN_REVISION`, `APROBADA`, `PUBLICADA`, cada una con quién la provocó y por qué.\n\n**Qué decir**\n\nTodo lo que pasó queda registrado. Las transiciones del medio las provocaron eventos del otro microservicio, y ahí está el revisor que decidió."
+     },
+     "response": []
+    },
+    {
+     "name": "17 · El evento PreguntaPublicada en la cola, sin consumirlo",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// El evento PreguntaPublicada tarda un instante en llegar a la cola.",
+         "// Se sondea con la misma API de management, en modo ack_requeue_true para",
+         "// no consumir nada mientras se comprueba.",
+         "const MAXIMO_MS = 20000;",
+         "const PASO_MS = 1000;",
+         "const inicio = Date.now();",
+         "const credenciales = 'Basic ' + Buffer.from(",
+         "    pm.variables.get('rabbitUsuario') + ':' + pm.variables.get('rabbitClave')",
+         ").toString('base64');",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlRabbitMQ') +",
+         "             '/api/queues/%2F/simulacros.catalogo-preguntas/get',",
+         "        method: 'POST',",
+         "        header: { 'Content-Type': 'application/json', 'Authorization': credenciales },",
+         "        body: { mode: 'raw', raw: JSON.stringify(",
+         "            { count: 10, ackmode: 'ack_requeue_true', encoding: 'auto' }) }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try {",
+         "                listo = respuesta.json().some(function (m) {",
+         "                    return JSON.parse(m.payload).eventType === 'PreguntaPublicada';",
+         "                });",
+         "            } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('El evento llego tras ' + Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) { setTimeout(sondear, PASO_MS); }",
+         "        else { console.warn('Se agotaron 20 s de espera.'); }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const mensajes = pm.response.json();",
+         "pm.test('Hay al menos un mensaje en la cola',",
+         "    () => pm.expect(mensajes.length).to.be.at.least(1));",
+         "",
+         "const publicados = mensajes",
+         "    .map(m => ({ m: m, ev: JSON.parse(m.payload) }))",
+         "    .filter(x => x.ev.eventType === 'PreguntaPublicada');",
+         "pm.test('Esta el evento PreguntaPublicada',",
+         "    () => pm.expect(publicados.length).to.be.at.least(1));",
+         "",
+         "const ultimo = publicados[publicados.length - 1].ev;",
+         "pm.test('El envelope tiene los 6 campos del contrato', function () {",
+         "    ['eventId', 'eventType', 'eventVersion', 'occurredAt', 'source', 'data']",
+         "        .forEach(k => pm.expect(ultimo).to.have.property(k));",
+         "});",
+         "pm.test('Lleva la pregunta completa con sus 5 opciones', function () {",
+         "    pm.expect(ultimo.data.pregunta.opciones).to.have.lengthOf(5);",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>El evento esperando al tercer microservicio</h2><p><span class=\\\"pill info\\\">{{cuantos}} mensaje(s) en la cola</span></p><table><tr><th>Campo</th><th>Valor</th></tr><tr><th>eventType</th><td><code>{{eventType}}</code></td></tr><tr><th>eventId</th><td><code>{{eventId}}</code></td></tr><tr><th>occurredAt</th><td>{{occurredAt}}</td></tr><tr><th>source</th><td>{{source}}</td></tr><tr><th>Pregunta</th><td>{{preguntaDirecta}}</td></tr><tr><th>Opciones en el evento</th><td>{{cuantasOpciones}}</td></tr></table><p class=\\\"mut\\\">Se leyó con <code>ack_requeue_true</code>: el mensaje se mira y vuelve a la cola. Sigue ahí para cuando el servicio de simulacros exista.</p></div>\", {",
+         "    cuantos: mensajes.length,",
+         "    eventType: ultimo.eventType, eventId: ultimo.eventId,",
+         "    occurredAt: ultimo.occurredAt, source: ultimo.source,",
+         "    preguntaDirecta: ultimo.data.pregunta.preguntaDirecta,",
+         "    cuantasOpciones: ultimo.data.pregunta.opciones.length",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/queues/%2F/simulacros.catalogo-preguntas/get",
+       "host": [
+        "{{urlRabbitMQ}}/api/queues/%2F/simulacros.catalogo-preguntas/get"
+       ]
+      },
+      "description": "**Qué hace**\n\nLee los mensajes de la cola del tercer microservicio con `ackmode: ack_requeue_true`: los mira y los devuelve a la cola, así que no se consumen.\n\nEl script espera a que el evento haya llegado.\n\n**Qué debe ver el profesor**\n\nEl evento `PreguntaPublicada` con su `eventId`, su fecha y la pregunta de esta demostración dentro. Sigue en la cola después de mirarlo.\n\n**Qué decir**\n\nNadie consume esta cola todavía. Guarda los eventos que el servicio de simulacros encontrará ahí cuando se conecte.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"count\": 10,\n  \"ackmode\": \"ack_requeue_true\",\n  \"encoding\": \"auto\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "6 · Seguridad y reglas del dominio (C1, C3)",
+   "description": "Qué pasa cuando alguien intenta algo que no puede: un rol sin permiso, una petición sin identificarse y una decisión que incumple una invariante.",
+   "item": [
+    {
+     "name": "18 · Un ESTUDIANTE intenta publicar → 403",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 403', () => pm.response.to.have.status(403));",
+         "const e = pm.response.json();",
+         "pm.test('Dice que rol haria falta',",
+         "    () => pm.expect(e.detail).to.include('ADMINISTRADOR'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>{{titulo}}</h2><p class=\\\"big\\\"><span class=\\\"pill bad\\\">HTTP {{status}}</span></p><table><tr><th>title</th><td>{{title}}</td></tr><tr><th>detail</th><td>{{detail}}</td></tr>{{#if errores}}<tr><th>errores</th><td>{{errores}}</td></tr>{{/if}}</table><p class=\\\"mut\\\">{{nota}}</p></div>\", {",
+         "    titulo: 'Rol sin permiso', status: e.status, title: e.title,",
+         "    detail: e.detail, errores: (e.errores || []).join(' · '),",
+         "    nota: 'El 403 es para cuando sabemos quien eres y tu rol no alcanza.'",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{estudianteId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "ESTUDIANTE",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/publicar",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/publicar"
+       ]
+      },
+      "description": "**Qué hace**\n\nUn usuario con rol `ESTUDIANTE` intenta publicar la pregunta.\n\n**Qué debe ver el profesor**\n\nUn `403`, y el mensaje dice qué rol haría falta: `ADMINISTRADOR`.\n\n**Qué decir**\n\nSabemos quién es y no puede hacerlo: eso es un 403. El rol se comprueba en la capa de interfaces, antes de llegar al dominio."
+     },
+     "response": []
+    },
+    {
+     "name": "19 · Petición sin cabeceras de usuario → 401",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 401', () => pm.response.to.have.status(401));",
+         "const e = pm.response.json();",
+         "pm.test('Dice que no se pudo identificar al usuario',",
+         "    () => pm.expect(e.title).to.include('No se pudo identificar'));",
+         "pm.test('Lista las dos cabeceras que faltan', function () {",
+         "    const t = e.errores.join(' ');",
+         "    pm.expect(t).to.include('X-Usuario-Id');",
+         "    pm.expect(t).to.include('X-Usuario-Rol');",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>{{titulo}}</h2><p class=\\\"big\\\"><span class=\\\"pill bad\\\">HTTP {{status}}</span></p><table><tr><th>title</th><td>{{title}}</td></tr><tr><th>detail</th><td>{{detail}}</td></tr>{{#if errores}}<tr><th>errores</th><td>{{errores}}</td></tr>{{/if}}</table><p class=\\\"mut\\\">{{nota}}</p></div>\", {",
+         "    titulo: 'Usuario no identificado', status: e.status, title: e.title,",
+         "    detail: e.detail, errores: e.errores.join(' · '),",
+         "    nota: 'El 401 es para cuando no sabemos quien eres.'",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nLa misma consulta de antes, pero sin las cabeceras `X-Usuario-Id` y `X-Usuario-Rol`.\n\n**Qué debe ver el profesor**\n\nUn `401` con el título *No se pudo identificar al usuario* y las dos cabeceras que faltan listadas en `errores`.\n\n**Qué decir**\n\nAquí no sabemos quién eres, así que es 401 y no 403. Son situaciones distintas y merecen códigos distintos."
+     },
+     "response": []
+    },
+    {
+     "name": "20 · Preparar: una segunda pregunta que llega a revisión",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Crea la pregunta de apoyo y guarda su id, para que la peticion",
+         "// principal solo tenga que enviarla a revision. Un solo clic.",
+         "const cuerpo = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}, {\"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Bases de datos por servicio\", \"nivelDificultad\": \"MEDIO\"};",
+         "pm.sendRequest({",
+         "    url: pm.variables.get('urlBanco') + '/api/v1/preguntas',",
+         "    method: 'POST',",
+         "    header: { 'Content-Type': 'application/json',",
+         "              'X-Usuario-Id': pm.variables.get('autorId'),",
+         "              'X-Usuario-Rol': 'AUTOR' },",
+         "    body: { mode: 'raw', raw: JSON.stringify(cuerpo) }",
+         "}, function (error, respuesta) {",
+         "    if (!error && respuesta && respuesta.code === 201) {",
+         "        const p = respuesta.json();",
+         "        pm.collectionVariables.set('demoOtraPreguntaId', p.id);",
+         "        console.log('Pregunta de apoyo creada:', p.id);",
+         "    } else {",
+         "        console.error('No se pudo crear la pregunta de apoyo.');",
+         "    }",
+         "});"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('Pasa a PENDIENTE_REVISION',",
+         "    () => pm.expect(p.estado).to.eql('PENDIENTE_REVISION'));",
+         "",
+         "// Espera a que exista su revision y guarda el identificador y el revisor.",
+         "const MAXIMO_MS = 20000;",
+         "const inicio = Date.now();",
+         "function buscar(hecho) {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlRevision') + '/api/v1/revisiones?preguntaId=' + p.id,",
+         "        method: 'GET',",
+         "        header: { 'X-Usuario-Id': pm.variables.get('administradorId'),",
+         "                  'X-Usuario-Rol': 'ADMINISTRADOR' }",
+         "    }, function (error, respuesta) {",
+         "        let revisiones = [];",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try { revisiones = respuesta.json(); } catch (e) { revisiones = []; }",
+         "        }",
+         "        if (revisiones.length > 0) {",
+         "            pm.collectionVariables.set('demoOtraRevisionId', revisiones[0].revisionId);",
+         "            pm.collectionVariables.set('demoOtroRevisorId', revisiones[0].revisorId);",
+         "            console.log('Revision de apoyo:', revisiones[0].revisionId);",
+         "            hecho(true);",
+         "        } else if (Date.now() - inicio < MAXIMO_MS) {",
+         "            setTimeout(function () { buscar(hecho); }, 1000);",
+         "        } else {",
+         "            hecho(false);",
+         "        }",
+         "    });",
+         "}",
+         "buscar(function (ok) {",
+         "    pm.test('La revision de apoyo esta lista', () => pm.expect(ok).to.be.true);",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoOtraPreguntaId}}/enviar-a-revision",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoOtraPreguntaId}}/enviar-a-revision"
+       ]
+      },
+      "description": "**Qué hace**\n\nPetición de apoyo para la siguiente. El script crea una pregunta nueva antes de enviar, y aquí la manda a revisión; después espera a que exista su revisión y guarda su identificador en `demoOtraRevisionId`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. Es material para probar la invariante 10 sin tocar la pregunta principal.\n\n**Qué decir**\n\nNecesitamos una revisión sin formato diligenciado para el caso siguiente."
+     },
+     "response": []
+    },
+    {
+     "name": "21 · Aprobar sin el formato diligenciado → 400 (invariante 10)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 400', () => pm.response.to.have.status(400));",
+         "const e = pm.response.json();",
+         "pm.test('Cita la invariante 10', function () {",
+         "    const t = e.detail + ' ' + (e.errores || []).join(' ');",
+         "    pm.expect(t).to.include('Invariante 10');",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>{{titulo}}</h2><p class=\\\"big\\\"><span class=\\\"pill bad\\\">HTTP {{status}}</span></p><table><tr><th>title</th><td>{{title}}</td></tr><tr><th>detail</th><td>{{detail}}</td></tr>{{#if errores}}<tr><th>errores</th><td>{{errores}}</td></tr>{{/if}}</table><p class=\\\"mut\\\">{{nota}}</p></div>\", {",
+         "    titulo: 'Invariante 10: no se decide con el formato incompleto',",
+         "    status: e.status, title: e.title, detail: e.detail,",
+         "    errores: (e.errores || []).join(' · '),",
+         "    nota: 'Hacen falta los 5 criterios y un promedio de al menos 3.0 para aprobar.'",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{demoOtroRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{demoOtraRevisionId}}/decision",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{demoOtraRevisionId}}/decision"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl revisor asignado intenta aprobar la segunda revisión sin haber puntuado ningún criterio.\n\n**Qué debe ver el profesor**\n\nUn `400` que dice cuántos criterios faltan y los lista, citando la invariante 10.\n\n**Qué decir**\n\nEl agregado no permite decidir con el formato incompleto. La regla está en el dominio, no en una validación del formulario.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"decision\": \"APROBAR\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "7 · Extra: el camino de rechazo (opcional)",
+   "description": "Qué pasa cuando el revisor rechaza. Son solo dos peticiones: la primera prepara todo en su script (crea la pregunta, la envía, espera la revisión, diligencia el formato y agrega dos observaciones) y rechaza; la segunda comprueba que el banco devolvió la pregunta al autor.",
+   "item": [
+    {
+     "name": "22 · Rechazar la revisión de una segunda pregunta",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Preparacion de un solo clic -------------------------------------",
+         "// Crea la pregunta, la envia a revision, espera la revision, diligencia",
+         "// el formato y agrega dos observaciones. Todo encadenado, para que el",
+         "// presentador solo pulse Send una vez.",
+         "const urlBanco = pm.variables.get('urlBanco');",
+         "const urlRevision = pm.variables.get('urlRevision');",
+         "const hAutor = { 'Content-Type': 'application/json',",
+         "                 'X-Usuario-Id': pm.variables.get('autorId'),",
+         "                 'X-Usuario-Rol': 'AUTOR' };",
+         "const hAdmin = { 'X-Usuario-Id': pm.variables.get('administradorId'),",
+         "                 'X-Usuario-Rol': 'ADMINISTRADOR' };",
+         "const cuerpoPregunta = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}, {\"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Patrones de integración\", \"nivelDificultad\": \"MEDIO\"};",
+         "const formato = {\"puntajes\": {\"CLARIDAD_CONTEXTO\": 5, \"PERTINENCIA_COMPETENCIA\": 5, \"PLAUSIBILIDAD_DISTRACTORES\": 4, \"UNICIDAD_RESPUESTA_CORRECTA\": 5, \"CALIDAD_JUSTIFICACION\": 4}};",
+         "const OBSERVACIONES = [",
+         "    'El distractor sobre el teorema CAP es demasiado facil de descartar para un estudiante de ultimo semestre.',",
+         "    'Falta precisar en el contexto cuantos servicios comparten hoy el esquema.'",
+         "];",
+         "",
+         "function crear(siguiente) {",
+         "    pm.sendRequest({ url: urlBanco + '/api/v1/preguntas', method: 'POST',",
+         "        header: hAutor, body: { mode: 'raw', raw: JSON.stringify(cuerpoPregunta) }",
+         "    }, function (e, r) {",
+         "        const p = r.json();",
+         "        pm.collectionVariables.set('demoRechazoPreguntaId', p.id);",
+         "        siguiente(p.id);",
+         "    });",
+         "}",
+         "",
+         "function enviar(id, siguiente) {",
+         "    pm.sendRequest({ url: urlBanco + '/api/v1/preguntas/' + id + '/enviar-a-revision',",
+         "        method: 'POST', header: hAutor },",
+         "        function () { siguiente(id); });",
+         "}",
+         "",
+         "function esperarRevision(id, siguiente, desde) {",
+         "    const inicio = desde || Date.now();",
+         "    pm.sendRequest({ url: urlRevision + '/api/v1/revisiones?preguntaId=' + id,",
+         "        method: 'GET', header: hAdmin",
+         "    }, function (e, r) {",
+         "        let rs = [];",
+         "        if (!e && r && r.code === 200) { try { rs = r.json(); } catch (x) { rs = []; } }",
+         "        if (rs.length > 0) {",
+         "            pm.collectionVariables.set('demoRechazoRevisionId', rs[0].revisionId);",
+         "            pm.collectionVariables.set('demoRechazoRevisorId', rs[0].revisorId);",
+         "            siguiente(rs[0]);",
+         "        } else if (Date.now() - inicio < 20000) {",
+         "            setTimeout(function () { esperarRevision(id, siguiente, inicio); }, 1000);",
+         "        } else {",
+         "            console.error('No se creo la revision de la segunda pregunta.');",
+         "        }",
+         "    });",
+         "}",
+         "",
+         "function ponerFormato(rev, siguiente) {",
+         "    const hRevisor = { 'Content-Type': 'application/json',",
+         "                       'X-Usuario-Id': rev.revisorId, 'X-Usuario-Rol': 'REVISOR' };",
+         "    pm.sendRequest({",
+         "        url: urlRevision + '/api/v1/revisiones/' + rev.revisionId + '/formato',",
+         "        method: 'PUT', header: hRevisor,",
+         "        body: { mode: 'raw', raw: JSON.stringify(formato) }",
+         "    }, function () { siguiente(rev, hRevisor, 0); });",
+         "}",
+         "",
+         "function observar(rev, hRevisor, i) {",
+         "    if (i >= OBSERVACIONES.length) {",
+         "        console.log('Lista para rechazar:', rev.revisionId);",
+         "        return;",
+         "    }",
+         "    pm.sendRequest({",
+         "        url: urlRevision + '/api/v1/revisiones/' + rev.revisionId + '/observaciones',",
+         "        method: 'POST', header: hRevisor,",
+         "        body: { mode: 'raw', raw: JSON.stringify({ texto: OBSERVACIONES[i] }) }",
+         "    }, function () { observar(rev, hRevisor, i + 1); });",
+         "}",
+         "",
+         "crear(function (id) {",
+         "    enviar(id, function (id2) {",
+         "        esperarRevision(id2, function (rev) {",
+         "            ponerFormato(rev, observar);",
+         "        });",
+         "    });",
+         "});"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const r = pm.response.json();",
+         "pm.test('La revision queda RECHAZADA', () => pm.expect(r.estado).to.eql('RECHAZADA'));",
+         "pm.test('Tiene las 2 observaciones (invariante 11)',",
+         "    () => pm.expect(r.observaciones).to.have.lengthOf(2));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Revisión rechazada</h2><p class=\\\"big\\\"><span class=\\\"pill bad\\\">{{estado}}</span></p><table><tr><th>Decisión</th><td>{{decision}}</td></tr><tr><th>Observaciones</th><td>{{cuantas}}</td></tr><tr><th>Evento publicado</th><td><code>PreguntaRechazadaPorPares</code></td></tr></table><table><tr><th>#</th><th>Observación</th></tr>{{#each observaciones}}<tr><td>{{n}}</td><td>{{texto}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">La invariante 11 exige al menos una observación para poder rechazar.</p></div>\", {",
+         "    estado: r.estado, decision: r.decision, cuantas: r.observaciones.length,",
+         "    observaciones: r.observaciones.map((o, i) => ({ n: i + 1, texto: o.texto }))",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{demoRechazoRevisorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "REVISOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRevision}}/api/v1/revisiones/{{demoRechazoRevisionId}}/decision",
+       "host": [
+        "{{urlRevision}}/api/v1/revisiones/{{demoRechazoRevisionId}}/decision"
+       ]
+      },
+      "description": "**Qué hace**\n\nEl script prepara en cadena una pregunta nueva hasta dejarla lista para decidir, y la petición la rechaza con dos observaciones ya registradas.\n\n**Qué debe ver el profesor**\n\nLa revisión queda `RECHAZADA` y se publica `PreguntaRechazadaPorPares` con las observaciones dentro.\n\n**Qué decir**\n\nRechazar exige al menos una observación: es la invariante 11. Y el evento lleva las observaciones, para que el autor sepa qué corregir.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"decision\": \"RECHAZAR\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "23 · La pregunta vuelve a BORRADOR con las observaciones",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// Espera a que el banco consuma PreguntaRechazadaPorPares.",
+         "// El cambio depende de un evento de RabbitMQ, asi que no es inmediato.",
+         "// Este script sondea cada segundo hasta 20 s y la peticion principal se",
+         "// envia cuando la condicion ya se cumple. Sin esto habria que reintentar",
+         "// a mano delante del profesor.",
+         "const MAXIMO_MS = 20000;",
+         "const PASO_MS = 1000;",
+         "const inicio = Date.now();",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlBanco') + '/api/v1/preguntas/' + pm.collectionVariables.get('demoRechazoPreguntaId'),",
+         "        method: 'GET',",
+         "        header: { 'X-Usuario-Id': pm.variables.get('autorId'), 'X-Usuario-Rol': 'AUTOR' }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try {",
+         "                const cuerpo = respuesta.json();",
+         "                listo = cuerpo.estado === 'BORRADOR' && !!cuerpo.observacionesUltimaRevision;",
+         "            } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('Listo tras ' + Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) {",
+         "            setTimeout(sondear, PASO_MS);",
+         "        } else {",
+         "            console.warn('Se agotaron ' + (MAXIMO_MS / 1000) + ' s de espera.');",
+         "        }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const p = pm.response.json();",
+         "pm.test('Volvio a BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
+         "pm.test('El autor ve las observaciones', function () {",
+         "    pm.expect(p.observacionesUltimaRevision).to.be.a('string').and.not.empty;",
+         "});",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>La pregunta volvió al autor</h2><p class=\\\"big\\\"><span class=\\\"pill warn\\\">{{estado}}</span></p><table><tr><th>Estado</th><td>{{estado}}</td></tr><tr><th>Por qué</th><td>consumió <code>PreguntaRechazadaPorPares</code></td></tr></table><h2>Observaciones visibles para el autor</h2><p>{{observaciones}}</p><p class=\\\"mut\\\">No existe un estado RECHAZADA: la pregunta vuelve a BORRADOR con las observaciones, para que el autor la corrija y la reenvíe.</p></div>\", {",
+         "    estado: p.estado, observaciones: p.observacionesUltimaRevision",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{demoRechazoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{demoRechazoPreguntaId}}"
+       ]
+      },
+      "description": "**Qué hace**\n\nLee la segunda pregunta en el banco. El script espera a que el banco haya consumido el evento de rechazo.\n\n**Qué debe ver el profesor**\n\nEstado `BORRADOR` otra vez, y las observaciones del revisor en `observacionesUltimaRevision`, visibles para el autor.\n\n**Qué decir**\n\nNo hay estado RECHAZADA: la pregunta vuelve al autor con lo que tiene que corregir, y desde ahí puede reenviarla."
+     },
+     "response": []
+    }
+   ]
+  },
+  {
+   "name": "8 · Extra: un evento que falla no se pierde (opcional)",
+   "description": "Se inyecta a mano un evento que el sistema no puede procesar y se comprueba que acaba en la cola de mensajes fallidos. La última petición vuelve a dejar el sistema limpio.",
+   "item": [
+    {
+     "name": "24 · Publicar un evento con una pregunta que no existe",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "pm.test('El broker lo enruto a una cola',",
+         "    () => pm.expect(pm.response.json().routed).to.be.true);",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Evento inyectado a mano</h2><p class=\\\"big\\\"><span class=\\\"pill info\\\">routed: {{routed}}</span></p><table><tr><th>Evento</th><td><code>PreguntaEnviadaARevision</code></td></tr><tr><th>eventId</th><td><code>{{eventId}}</code></td></tr><tr><th>preguntaId</th><td><code>{{preguntaId}}</code> (no existe en el banco)</td></tr><tr><th>Routing key</th><td><code>banco.pregunta.enviada-a-revision</code></td></tr></table><p class=\\\"mut\\\">El servicio de revisión va a intentar procesarlo, el banco le dirá que esa pregunta no existe, y el evento acabará en la DLQ.</p></div>\", {",
+         "    routed: pm.response.json().routed,",
+         "    eventId: 'dead0000-1111-4222-8333-444455556666',",
+         "    preguntaId: '00000000-0000-4000-8000-000000000000'",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/exchanges/%2F/saberpro.eventos/publish",
+       "host": [
+        "{{urlRabbitMQ}}/api/exchanges/%2F/saberpro.eventos/publish"
+       ]
+      },
+      "description": "**Qué hace**\n\nPublica en el exchange un `PreguntaEnviadaARevision` cuyo `preguntaId` no existe en el banco.\n\n**Qué debe ver el profesor**\n\n`routed: true`: el broker lo entregó a la cola. El servicio de revisión lo tomará y fallará al pedir la pregunta.\n\n**Qué decir**\n\nVamos a provocar un fallo a propósito, para ver que el evento no desaparece.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"properties\": {\n    \"content_type\": \"application/json\",\n    \"delivery_mode\": 2,\n    \"message_id\": \"dead0000-1111-4222-8333-444455556666\",\n    \"headers\": {\n      \"eventType\": \"PreguntaEnviadaARevision\"\n    }\n  },\n  \"routing_key\": \"banco.pregunta.enviada-a-revision\",\n  \"payload\": \"{\\\"eventId\\\": \\\"dead0000-1111-4222-8333-444455556666\\\", \\\"eventType\\\": \\\"PreguntaEnviadaARevision\\\", \\\"eventVersion\\\": 1, \\\"occurredAt\\\": \\\"2026-09-25T12:00:00Z\\\", \\\"source\\\": \\\"demostracion-manual\\\", \\\"data\\\": {\\\"preguntaId\\\": \\\"00000000-0000-4000-8000-000000000000\\\", \\\"autorId\\\": \\\"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d\\\", \\\"competenciaCodigo\\\": \\\"ING-SOFT\\\"}}\",\n  \"payload_encoding\": \"string\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "25 · El evento acabó en la DLQ",
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// -- Espera de un solo clic ------------------------------------------",
+         "// El evento tiene que recorrer la cola, fallar y pasar a la DLQ.",
+         "const MAXIMO_MS = 20000;",
+         "const inicio = Date.now();",
+         "const credenciales = 'Basic ' + Buffer.from(",
+         "    pm.variables.get('rabbitUsuario') + ':' + pm.variables.get('rabbitClave')",
+         ").toString('base64');",
+         "",
+         "function sondear() {",
+         "    pm.sendRequest({",
+         "        url: pm.variables.get('urlRabbitMQ') +",
+         "             '/api/queues/%2F/revision.preguntas-enviadas.dlq/get',",
+         "        method: 'POST',",
+         "        header: { 'Content-Type': 'application/json', 'Authorization': credenciales },",
+         "        body: { mode: 'raw', raw: JSON.stringify(",
+         "            { count: 10, ackmode: 'ack_requeue_true', encoding: 'auto' }) }",
+         "    }, function (error, respuesta) {",
+         "        let listo = false;",
+         "        if (!error && respuesta && respuesta.code === 200) {",
+         "            try { listo = respuesta.json().length > 0; } catch (e) { listo = false; }",
+         "        }",
+         "        const transcurrido = Date.now() - inicio;",
+         "        if (listo) {",
+         "            console.log('El evento llego a la DLQ tras ' +",
+         "                        Math.round(transcurrido / 1000) + ' s.');",
+         "            return;",
+         "        }",
+         "        if (transcurrido < MAXIMO_MS) { setTimeout(sondear, 1000); }",
+         "        else { console.warn('Se agotaron 20 s de espera.'); }",
+         "    });",
+         "}",
+         "sondear();"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+         "const mensajes = pm.response.json();",
+         "pm.test('Hay al menos un mensaje en la DLQ',",
+         "    () => pm.expect(mensajes.length).to.be.at.least(1));",
+         "const ev = JSON.parse(mensajes[0].payload);",
+         "pm.test('Es el evento que inyectamos',",
+         "    () => pm.expect(ev.eventId).to.eql('dead0000-1111-4222-8333-444455556666'));",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>El evento está en la DLQ, no se perdió</h2><p class=\\\"big\\\"><span class=\\\"pill bad\\\">{{cuantos}} mensaje(s) en <code>revision.preguntas-enviadas.dlq</code></span></p><table><tr><th>eventId</th><td><code>{{eventId}}</code></td></tr><tr><th>eventType</th><td>{{eventType}}</td></tr><tr><th>preguntaId</th><td><code>{{preguntaId}}</code></td></tr></table><p class=\\\"mut\\\">Sin reintentos: cualquier fallo manda el evento aquí. Queda guardado, se ve en la consola de RabbitMQ y se puede volver a publicar cuando la causa esté resuelta.</p></div>\", {",
+         "    cuantos: mensajes.length, eventId: ev.eventId, eventType: ev.eventType,",
+         "    preguntaId: ev.data.preguntaId",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/queues/%2F/revision.preguntas-enviadas.dlq/get",
+       "host": [
+        "{{urlRabbitMQ}}/api/queues/%2F/revision.preguntas-enviadas.dlq/get"
+       ]
+      },
+      "description": "**Qué hace**\n\nLee la cola de mensajes fallidos con `ack_requeue_true`, así que el mensaje se mira y vuelve a la cola. El script espera a que llegue.\n\n**Qué debe ver el profesor**\n\nEl evento que acabamos de inyectar, con su `eventId`. En los logs del `revision-service` se ve la línea que explica por qué falló.\n\n**Qué decir**\n\nAhí está: no se perdió. Queda guardado para revisarlo y volver a publicarlo cuando la causa esté resuelta.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"count\": 10,\n  \"ackmode\": \"ack_requeue_true\",\n  \"encoding\": \"auto\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      },
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "26 · Vaciar la DLQ y dejar el sistema limpio",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('Responde 204', () => pm.response.to.have.status(204));",
+         "console.log('DLQ vaciada.');",
+         "",
+         "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>DLQ vaciada</h2><p class=\\\"big\\\"><span class=\\\"pill ok\\\">HTTP {{status}}</span></p><p>La cola <code>revision.preguntas-enviadas.dlq</code> queda limpia, y el sistema vuelve al estado en que estaba antes de esta demostración.</p></div>\", { status: pm.response.code });"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "DELETE",
+      "header": [],
+      "url": {
+       "raw": "{{urlRabbitMQ}}/api/queues/%2F/revision.preguntas-enviadas.dlq/contents",
+       "host": [
+        "{{urlRabbitMQ}}/api/queues/%2F/revision.preguntas-enviadas.dlq/contents"
+       ]
+      },
+      "description": "**Qué hace**\n\nBorra el contenido de la DLQ.\n\n**Qué debe ver el profesor**\n\nUn `204`. Después de esta petición las 3 DLQ vuelven a estar vacías.\n\n**Qué decir**\n\nDejamos el sistema como estaba, para que la siguiente demostración empiece limpia.",
+      "auth": {
+       "type": "basic",
+       "basic": [
+        {
+         "key": "username",
+         "value": "{{rabbitUsuario}}",
+         "type": "string"
+        },
+        {
+         "key": "password",
+         "value": "{{rabbitClave}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": []
+    }
+   ]
+  }
+ ],
+ "event": [
+  {
+   "listen": "prerequest",
+   "script": {
+    "type": "text/javascript",
+    "exec": [
+     "// Guardia para toda la coleccion: si el environment no esta seleccionado,",
+     "// ninguna peticion puede resolver su direccion. Mejor detenerse aqui con un",
+     "// mensaje claro que ver una cascada de errores raros.",
+     "const urlBanco = pm.variables.get('urlBanco');",
+     "",
+     "if (!urlBanco) {",
+     "    // Si esto corre en el Runner, se detiene aqui en vez de encadenar 26 errores.",
+     "    postman.setNextRequest(null);",
+     "    throw new Error(",
+     "        'Selecciona el environment \"SaberPro - local (Docker)\" arriba a la derecha. '",
+     "        + 'Sin el, ninguna peticion puede resolver su direccion. '",
+     "        + 'Como importarlo: docs/GUIA_POSTMAN.md'",
+     "    );",
+     "}"
+    ]
+   }
+  }
+ ]
+}
