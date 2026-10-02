@@ -129,11 +129,53 @@
 				</configuration>
 			</plugin>
 
+			<!-- Registra el codigo gRPC generado como carpeta de fuentes de forma que
+			     el IDE la vea. VS Code (m2e) no ejecuta protobuf-maven-plugin, pero si
+			     entiende build-helper; sin esto marca como inexistentes las clases de
+			     ...banco.grpc.v1 aunque Maven compile bien. -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>fuentes-grpc-generadas</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${project.build.directory}/generated-sources/protobuf</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- En Windows la ruta del repositorio es tan larga que la de protoc.exe dentro
+		     de target/ pasa de 260 caracteres, y CreateProcess no lo puede lanzar
+		     (ni con LongPathsEnabled). Este perfil hace que el plugin copie protoc y
+		     protoc-gen-grpc-java a una ruta corta antes de ejecutarlos. En Linux (el
+		     Dockerfile) no se activa. -->
+		<profile>
+			<id>windows-rutas-largas</id>
+			<activation>
+				<os>
+					<family>windows</family>
+				</os>
+			</activation>
+			<properties>
+				<protobuf.sanctioned-executable-path>${user.home}/.m2/protoc</protobuf.sanctioned-executable-path>
+			</properties>
+		</profile>
+	</profiles>
 
 </project>
