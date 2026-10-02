@@ -2420,6 +2420,93 @@
      "response": []
     },
     {
+     "name": "404 - Ruta que no existe en el banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const e = pm.response.json();",
+         "    pm.expect(e.status).to.eql(404);",
+         "    pm.expect(e.detail).to.include(\"/api/v1/no-existe\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/no-existe",
+       "host": [
+        "{{urlBanco}}/api/v1/no-existe"
+       ]
+      },
+      "description": "Una ruta que la API no tiene responde **404** en formato Problem Details, no un error interno."
+     },
+     "response": []
+    },
+    {
+     "name": "405 - DELETE de una pregunta (invariante 8)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 405\", () => pm.response.to.have.status(405));",
+         "pm.test(\"La cabecera Allow dice qué métodos sí admite la ruta\", function () {",
+         "    pm.expect(pm.response.headers.get(\"Allow\")).to.include(\"GET\");",
+         "});",
+         "pm.test(\"Explica la invariante 8 y cómo archivar\", function () {",
+         "    const e = pm.response.json();",
+         "    pm.expect(e.detail).to.include(\"Invariante 8\");",
+         "    pm.expect(e.errores.join(\" \")).to.include(\"/archivar\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}"
+       ]
+      },
+      "description": "En el banco nada se elimina físicamente: la única salida es archivar (invariante 8, ADR 3). No existe ningún `DELETE`, y si se intenta, la respuesta es **405** con la cabecera `Allow` y un mensaje que explica la regla."
+     },
+     "response": []
+    },
+    {
      "name": "409 - Enviar a revisión desde BORRADOR (invariante 6)",
      "event": [
       {

@@ -3,7 +3,7 @@
     Prueba integral del sistema completo: banco + revisión + RabbitMQ + gRPC.
 
 .DESCRIPTION
-    Recorre 29 comprobaciones contra el sistema levantado con Docker: el camino
+    Recorre 31 comprobaciones contra el sistema levantado con Docker: el camino
     feliz de punta a punta, el camino de rechazo con la reapertura y el reenvío,
     las reglas del dominio y la salud de la mensajería.
 
@@ -13,7 +13,7 @@
     Los pasos asíncronos (los que dependen de un evento de RabbitMQ) esperan
     sondeando cada segundo, con un máximo de 30 s. No hay `sleep` fijos.
 
-    Código de salida: 0 si las 29 pasan, 1 si alguna falla.
+    Código de salida: 0 si las 31 pasan, 1 si alguna falla.
 
 .PARAMETER UrlBanco
     URL base del banco-preguntas-service. Por defecto http://localhost:8081
@@ -530,11 +530,21 @@ Invocar-Esperando-Error -Metodo Get -Url "$UrlRevision/api/v1/revisiones" `
     -Cabeceras @{} -EstadoEsperado 401 `
     -Descripcion '28. Revisión sin cabeceras de usuario' | Out-Null
 
+# 29
+Invocar-Esperando-Error -Metodo Delete -Url "$UrlBanco/api/v1/preguntas/$idFeliz" `
+    -Cabeceras $Administrador -EstadoEsperado 405 -PatronEnErrores 'Invariante 8' `
+    -Descripcion '29. DELETE de una pregunta -> 405: no se borra, se archiva (invariante 8)' | Out-Null
+
+# 30
+Invocar-Esperando-Error -Metodo Get -Url "$UrlBanco/api/v1/no-existe" `
+    -Cabeceras $Administrador -EstadoEsperado 404 `
+    -Descripcion '30. Una ruta que no existe en el banco -> 404' | Out-Null
+
 # ═════════════════════════════════════════════════════════════════════════════
 Seccion 'MENSAJERÍA'
 # ═════════════════════════════════════════════════════════════════════════════
 
-# 29
+# 31
 $dlqConMensajes = @()
 foreach ($dlq in @('revision.preguntas-enviadas.dlq',
                    'banco.resultados-revision.dlq',
@@ -542,7 +552,7 @@ foreach ($dlq in @('revision.preguntas-enviadas.dlq',
     $n = Mensajes-En-Cola $dlq
     if ($n -ne 0) { $dlqConMensajes += "$dlq=$n" }
 }
-Comprobar ($dlqConMensajes.Count -eq 0) '29. Las 3 DLQ están vacías' `
+Comprobar ($dlqConMensajes.Count -eq 0) '31. Las 3 DLQ están vacías' `
     $(if ($dlqConMensajes.Count -eq 0) { 'ningún evento fallido' } else { $dlqConMensajes -join ' ' })
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -96,7 +96,7 @@ El guion completo de la demostración está en
 powershell -ExecutionPolicy Bypass -File .\scripts\prueba-e2e.ps1
 ```
 
-Recorre **29 comprobaciones** contra el sistema levantado: el camino feliz de
+Recorre **31 comprobaciones** contra el sistema levantado: el camino feliz de
 punta a punta, el camino de rechazo, las reglas del dominio y que las tres DLQ
 estén vacías. Crea sus propias preguntas, así que se puede repetir. Devuelve
 código de salida 0 si todas pasan.
@@ -105,7 +105,7 @@ código de salida 0 si todas pasan.
 
 Importa los dos archivos de `postman/` y selecciona el environment
 *SaberPro - local (Docker)* arriba a la derecha. La colección tiene
-**48 peticiones** en 5 carpetas, todas con tests:
+**50 peticiones** en 5 carpetas, todas con tests:
 
 | Carpeta | Para qué |
 |---|---|
@@ -155,7 +155,7 @@ ven el exchange, las 3 colas de negocio, sus 3 DLQ y los mensajes que esperan.
 ## Tests en local
 
 ```powershell
-# banco-preguntas-service: 61 tests (dominio + 3 reglas de ArchUnit)
+# banco-preguntas-service: 64 tests (dominio, errores HTTP y 3 reglas de ArchUnit)
 cd banco-preguntas-service
 .\mvnw.cmd test
 
@@ -213,7 +213,7 @@ Docker el Dockerfile lo genera solo.
 | Productor → broker → consumidor | Dos flujos en direcciones opuestas: banco → revisión y revisión → banco |
 | Código en Git | Este repositorio |
 | Diagrama de arquitectura | [`docs/arquitectura.md`](docs/arquitectura.md) |
-| Pruebas en Postman | `postman/`, 48 peticiones con tests |
+| Pruebas en Postman | `postman/`, 50 peticiones con tests |
 | README para ejecutar y probar | Este archivo |
 
 ## Problemas técnicos encontrados
@@ -260,6 +260,7 @@ Docker el Dockerfile lo genera solo.
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Diagrama general, context map, las 4 capas y el modelo DDD |
 | [`docs/flujo-e2e.md`](docs/flujo-e2e.md) | Diagramas de secuencia del camino feliz y del rechazo |
+| [`docs/ciclo-de-vida.md`](docs/ciclo-de-vida.md) | Los 8 estados de la pregunta y el proceso de negocio con sus roles y decisiones |
 | [`docs/eventos.md`](docs/eventos.md) | Los 6 eventos, el envelope, las colas y la idempotencia |
 | [`docs/decisiones.md`](docs/decisiones.md) | Las 8 decisiones de arquitectura y por qué |
 | [`docs/GUIA_INTEGRACION.md`](docs/GUIA_INTEGRACION.md) | Cómo conectar el tercer microservicio, en cualquier tecnología |

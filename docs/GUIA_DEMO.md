@@ -176,9 +176,9 @@ y lo imprime en pantalla:
 powershell -ExecutionPolicy Bypass -File .\scripts\prueba-e2e.ps1
 ```
 
-Son **29 comprobaciones** en unos 15 segundos: el camino feliz completo con sus
+Son **31 comprobaciones** en unos 15 segundos: el camino feliz completo con sus
 eventos y su llamada gRPC, el camino de rechazo con la reapertura y el reenvío,
-las reglas del dominio, el 401, el 403 y que las 3 DLQ están vacías. Sirve perfectamente como demostración.
+las reglas del dominio, el 401, el 403, el 405 de un `DELETE`, el 404 y que las 3 DLQ están vacías. Sirve perfectamente como demostración.
 
 **Plan C, si Docker no arranca.** No se puede mostrar el sistema en vivo, así que
 se explica con los diagramas: los de secuencia de

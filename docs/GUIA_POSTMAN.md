@@ -24,7 +24,7 @@ Hay que importar **3 archivos**, todos en la carpeta `postman/` del repositorio:
 | Archivo | Qué es |
 |---|---|
 | `SaberPro-DEMO.postman_collection.json` | La colección de la demostración: 26 peticiones numeradas |
-| `SaberPro.postman_collection.json` | La colección completa de pruebas: 48 peticiones |
+| `SaberPro.postman_collection.json` | La colección completa de pruebas: 50 peticiones |
 | `SaberPro-local.postman_environment.json` | El environment: las direcciones y los usuarios simulados |
 
 Pasos:

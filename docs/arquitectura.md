@@ -6,33 +6,32 @@ Los dos microservicios, sus bases de datos, RabbitMQ y el tercer servicio que
 queda pendiente. Cada flecha dice con qué tecnología viaja.
 
 ```mermaid
-flowchart TB
-    subgraph clientes[Clientes]
-        UI[Postman / Swagger / scripts]
+flowchart LR
+    UI["Clientes<br/>Postman · Swagger · scripts"]
+
+    subgraph banco["banco-preguntas-service · Java 21 + Spring Boot"]
+        direction TB
+        BAPI["API REST :8081<br/>+ consumidor de eventos"]
+        BGRPC["Servidor gRPC :9091"]
+    end
+    BDB[("postgres-banco<br/>:5433")]
+
+    subgraph broker["RabbitMQ :5672 · exchange saberpro.eventos"]
+        direction TB
+        Q1[["revision.preguntas-enviadas<br/>PreguntaEnviadaARevision"]]
+        Q2[["banco.resultados-revision<br/>RevisorAsignado<br/>PreguntaAprobadaTecnicamente<br/>PreguntaRechazadaPorPares"]]
+        Q3[["simulacros.catalogo-preguntas<br/>PreguntaPublicada<br/>PreguntaArchivada"]]
     end
 
-    subgraph banco[banco-preguntas-service · Java 21 + Spring Boot]
-        BAPI[API REST :8081]
-        BGRPC[Servidor gRPC :9091]
+    subgraph revision["revision-service · Python 3.13 + FastAPI"]
+        RAPI["API REST :8082<br/>+ consumidor de eventos"]
     end
+    RDB[("postgres-revision<br/>:5434")]
 
-    subgraph revision[revision-service · Python 3.13 + FastAPI]
-        RAPI[API REST :8082]
+    subgraph simulacros["simulacros-service · pendiente"]
+        SAPI["API REST :8083"]
     end
-
-    subgraph simulacros[simulacros-service · pendiente]
-        SAPI[API REST :8083]
-    end
-
-    BDB[(postgres-banco<br/>:5433)]
-    RDB[(postgres-revision<br/>:5434)]
-    SDB[(postgres-simulacros<br/>:5435)]
-
-    subgraph broker[RabbitMQ :5672 · exchange saberpro.eventos]
-        Q1[[revision.preguntas-enviadas]]
-        Q2[[banco.resultados-revision]]
-        Q3[[simulacros.catalogo-preguntas]]
-    end
+    SDB[("postgres-simulacros<br/>:5435")]
 
     UI -->|REST| BAPI
     UI -->|REST| RAPI
@@ -41,18 +40,15 @@ flowchart TB
     RAPI --- RDB
     SAPI -.- SDB
 
-    BAPI -->|RabbitMQ<br/>PreguntaEnviadaARevision| Q1
-    Q1 -->|RabbitMQ| RAPI
+    BAPI -->|"RabbitMQ: publica"| Q1
+    Q1 -->|"RabbitMQ: consume"| RAPI
+    RAPI -->|"RabbitMQ: publica"| Q2
+    Q2 -->|"RabbitMQ: consume"| BAPI
+    BAPI -->|"RabbitMQ: publica"| Q3
+    Q3 -.->|"RabbitMQ: consumirá"| SAPI
 
-    RAPI -->|gRPC<br/>ObtenerPregunta| BGRPC
-
-    RAPI -->|RabbitMQ<br/>RevisorAsignado<br/>PreguntaAprobadaTecnicamente<br/>PreguntaRechazadaPorPares| Q2
-    Q2 -->|RabbitMQ| BAPI
-
-    BAPI -->|RabbitMQ<br/>PreguntaPublicada<br/>PreguntaArchivada| Q3
-    Q3 -.->|RabbitMQ| SAPI
-
-    SAPI -.->|gRPC<br/>ListarPreguntasPublicadas| BGRPC
+    RAPI ==>|"gRPC ObtenerPregunta<br/>(síncrona)"| BGRPC
+    SAPI -.->|"gRPC ListarPreguntasPublicadas"| BGRPC
 
     classDef pendiente stroke-dasharray: 5 5
     class simulacros,SAPI,SDB pendiente
@@ -67,6 +63,8 @@ Lo que conviene mirar en el diagrama:
   cola `banco.resultados-revision`.
 - **La única llamada síncrona entre servicios es gRPC.** Ningún servicio llama
   al REST del otro.
+- **Cada cola nombra los eventos que lleva.** Las flechas dicen quién publica y
+  quién consume; el contrato de cada evento está en [`eventos.md`](eventos.md).
 - **La cola del tercer servicio ya existe.** Guarda los eventos
   `PreguntaPublicada` y `PreguntaArchivada` que todavía no ha consumido nadie.
   Cuando el tercer microservicio se conecte, los encontrará ahí.
