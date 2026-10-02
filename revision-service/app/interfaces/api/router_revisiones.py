@@ -120,7 +120,7 @@ async def consultar_revision(
     description="""
 Guarda o reemplaza el formato de evaluación de la revisión.
 
-Los 5 criterios se puntúan de **1 a 5**. Se puede guardar **incompleto**: el
+Los 6 criterios se puntúan de **1 a 5**. Se puede guardar **incompleto**: el
 revisor puntúa lo que lleva y vuelve luego. Lo que no se puede es *decidir* con
 el formato incompleto (invariante 10).
 
@@ -191,8 +191,8 @@ Cierra la revisión y publica el resultado hacia el `banco-preguntas-service`.
 - **APROBAR** → se publica `PreguntaAprobadaTecnicamente` y la pregunta pasa a
   `APROBADA` en el banco. Exige el formato completo y un promedio no inferior al
   mínimo configurado (3.0 por defecto).
-- **RECHAZAR** → se publica `PreguntaRechazadaPorPares` y la pregunta vuelve a
-  `BORRADOR` en el banco, con las observaciones visibles para el autor. Exige el
+- **RECHAZAR** → se publica `PreguntaRechazadaPorPares` y la pregunta pasa a
+  `RECHAZADA` en el banco, con las observaciones visibles para el autor. Exige el
   formato completo y **al menos una observación**.
 
 La decisión es definitiva: una revisión decidida no se reabre. Si la pregunta se

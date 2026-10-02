@@ -96,7 +96,7 @@ El guion completo de la demostración está en
 powershell -ExecutionPolicy Bypass -File .\scripts\prueba-e2e.ps1
 ```
 
-Recorre **24 comprobaciones** contra el sistema levantado: el camino feliz de
+Recorre **31 comprobaciones** contra el sistema levantado: el camino feliz de
 punta a punta, el camino de rechazo, las reglas del dominio y que las tres DLQ
 estén vacías. Crea sus propias preguntas, así que se puede repetir. Devuelve
 código de salida 0 si todas pasan.
@@ -105,7 +105,7 @@ código de salida 0 si todas pasan.
 
 Importa los dos archivos de `postman/` y selecciona el environment
 *SaberPro - local (Docker)* arriba a la derecha. La colección tiene
-**45 peticiones** en 5 carpetas, todas con tests:
+**50 peticiones** en 5 carpetas, todas con tests:
 
 | Carpeta | Para qué |
 |---|---|
@@ -155,11 +155,11 @@ ven el exchange, las 3 colas de negocio, sus 3 DLQ y los mensajes que esperan.
 ## Tests en local
 
 ```powershell
-# banco-preguntas-service: 57 tests (dominio + 3 reglas de ArchUnit)
+# banco-preguntas-service: 64 tests (dominio, errores HTTP y 3 reglas de ArchUnit)
 cd banco-preguntas-service
 .\mvnw.cmd test
 
-# revision-service: 58 tests + 2 contratos de import-linter
+# revision-service: 59 tests + 2 contratos de import-linter
 cd ..\revision-service
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -203,7 +203,7 @@ Docker el Dockerfile lo genera solo.
 | Mínimo 2 microservicios del Taller 1 | `banco-preguntas-service` y `revision-service` |
 | Tecnologías diferentes | Java 21 + Spring Boot · Python 3.13 + FastAPI |
 | Correspondencia con los Bounded Contexts | Banco de Preguntas · Ciclo de Vida y Revisión ([context map](docs/arquitectura.md)) |
-| DDD: Entities, Value Objects, Aggregates, Domain Services, Domain Events | 2 Aggregate Roots, los 9 Value Objects del Taller 1, 2 Domain Services y 6 eventos ([tabla](docs/arquitectura.md)) |
+| DDD: Entities, Value Objects, Aggregates, Domain Services, Domain Events | 2 Aggregate Roots, los Value Objects del Taller 1 y los que se agregaron (justificados en la tabla), 2 Domain Services y 6 eventos ([tabla](docs/arquitectura.md)) |
 | Clean Architecture con capas separadas | 4 capas en cada servicio, verificadas por ArchUnit e import-linter |
 | Persistencia propia, sin compartir | `postgres-banco` (5 tablas) y `postgres-revision` (5 tablas) |
 | API REST en cada microservicio | 8 endpoints en el banco, 7 en revisión, ambos con Swagger |
@@ -213,7 +213,7 @@ Docker el Dockerfile lo genera solo.
 | Productor → broker → consumidor | Dos flujos en direcciones opuestas: banco → revisión y revisión → banco |
 | Código en Git | Este repositorio |
 | Diagrama de arquitectura | [`docs/arquitectura.md`](docs/arquitectura.md) |
-| Pruebas en Postman | `postman/`, 45 peticiones con tests |
+| Pruebas en Postman | `postman/`, 50 peticiones con tests |
 | README para ejecutar y probar | Este archivo |
 
 ## Problemas técnicos encontrados
@@ -260,6 +260,7 @@ Docker el Dockerfile lo genera solo.
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Diagrama general, context map, las 4 capas y el modelo DDD |
 | [`docs/flujo-e2e.md`](docs/flujo-e2e.md) | Diagramas de secuencia del camino feliz y del rechazo |
+| [`docs/ciclo-de-vida.md`](docs/ciclo-de-vida.md) | Los 8 estados de la pregunta y el proceso de negocio con sus roles y decisiones |
 | [`docs/eventos.md`](docs/eventos.md) | Los 6 eventos, el envelope, las colas y la idempotencia |
 | [`docs/decisiones.md`](docs/decisiones.md) | Las 8 decisiones de arquitectura y por qué |
 | [`docs/GUIA_INTEGRACION.md`](docs/GUIA_INTEGRACION.md) | Cómo conectar el tercer microservicio, en cualquier tecnología |

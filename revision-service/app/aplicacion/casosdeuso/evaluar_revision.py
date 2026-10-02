@@ -96,7 +96,7 @@ class DecidirRevisionUseCase(_CasoDeUsoSobreRevision):
 
     Es el punto en que este Bounded Context vuelve a hablar con el banco:
     publica ``PreguntaAprobadaTecnicamente`` o ``PreguntaRechazadaPorPares``, y
-    con eso la pregunta pasa a ``APROBADA`` o vuelve a ``BORRADOR`` con las
+    con eso la pregunta pasa a ``APROBADA`` o a ``RECHAZADA`` con las
     observaciones.
 
     Las reglas duras (formato completo, promedio mínimo, al menos una

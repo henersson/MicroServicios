@@ -25,19 +25,31 @@ feliz.
 
 ---
 
-## ADR 2 — El rechazo devuelve la pregunta a `BORRADOR`
+## ADR 2 — Los 8 estados del Taller 1, con `EN_CONSTRUCCION` y `RECHAZADA`
 
-**Contexto.** Cuando un revisor rechaza una pregunta hay dos opciones: crear un
-estado `RECHAZADA`, o devolverla al estado editable.
+**Contexto.** El lenguaje ubicuo del Taller 1 define 8 estados para una pregunta:
+Borrador, En construcción, Pendiente de revisión, En revisión, Aprobada,
+Rechazada, Publicada y Archivada. Una primera versión del banco usaba solo 6: el
+rechazo devolvía la pregunta a `BORRADOR` y no existía `EN_CONSTRUCCION`. El
+Taller 1 tampoco dice en qué se diferencian Borrador y En construcción.
 
-**Decisión.** La pregunta vuelve a `BORRADOR`, con las observaciones del revisor
-guardadas en `observacionesUltimaRevision`. No existe un estado `RECHAZADA`.
+**Decisión.** Se implementan los 8.
 
-**Consecuencia.** El autor ve exactamente qué corregir y usa el mismo endpoint de
-edición que ya conocía; después la reenvía y el ciclo empieza otra vez. Un estado
-`RECHAZADA` habría necesitado una transición extra hacia `BORRADOR` que no
-aportaba nada. Lo que se pierde es saber de un vistazo cuántas veces fue
-rechazada una pregunta: eso hay que leerlo del historial.
+- `BORRADOR` es la pregunta recién creada. Pasa a `EN_CONSTRUCCION` la primera
+  vez que el autor la edita, y **solo desde `EN_CONSTRUCCION` se envía a
+  revisión**.
+- Un rechazo deja la pregunta en `RECHAZADA`, con las observaciones del revisor
+  en `observacionesUltimaRevision`. Al editarla, el autor la **reabre**: vuelve a
+  `EN_CONSTRUCCION` y desde ahí la reenvía.
+- Se edita en `BORRADOR`, `EN_CONSTRUCCION` y `RECHAZADA` (invariante 7). Se
+  archiva desde esos tres, desde `APROBADA` y desde `PUBLICADA`.
+
+**Consecuencia.** El modelo coincide con el lenguaje ubicuo, y el estado dice de
+un vistazo si una pregunta fue rechazada. Reabrir no necesita un endpoint nuevo:
+es la misma edición. El precio es que una pregunta recién creada no se puede
+enviar directamente: el autor tiene que editarla al menos una vez, porque la
+invariante 6 no permite saltar de `BORRADOR` a `PENDIENTE_REVISION`. Las bases de
+datos existentes se adaptan con la migración `V4` de Flyway.
 
 ---
 

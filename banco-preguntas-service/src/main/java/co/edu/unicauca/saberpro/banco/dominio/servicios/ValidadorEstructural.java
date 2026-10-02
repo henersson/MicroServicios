@@ -25,18 +25,22 @@ import java.util.regex.Pattern;
  * <strong>todos</strong> los errores de una vez, en español, para que el autor
  * los corrija en una sola pasada en vez de descubrirlos de uno en uno.
  *
- * <h2>Limitación documentada</h2>
- * La invariante 3 del Taller 1 pide "coherencia gramatical" entre las opciones.
- * Eso no se puede comprobar sin análisis de lenguaje natural, así que se
- * aproxima con dos reglas mecánicas: longitud mínima y no repetición. Queda
- * anotado como limitación consciente, no como olvido.
+ * <h2>La parte gramatical de la invariante 3</h2>
+ * La invariante 3 del Taller 1 pide además una "estructura gramatical coherente
+ * con la pregunta directa". Eso no se puede comprobar de forma fiable sin
+ * análisis de lenguaje natural, así que aquí se aplican las dos reglas
+ * mecánicas (longitud mínima y no repetición) y la coherencia gramatical la
+ * juzga una persona: es el criterio obligatorio {@code COHERENCIA_GRAMATICAL}
+ * del formato de evaluación en el revision-service. Como la invariante 10 no
+ * deja decidir con el formato incompleto, ninguna pregunta se aprueba sin que
+ * el revisor haya puntuado ese criterio.
  */
 public class ValidadorEstructural {
 
-    /** Invariante 1: toda pregunta Saber Pro tiene 5 opciones. */
-    public static final int OPCIONES_REQUERIDAS = 5;
+    /** Invariante 1: toda pregunta Saber Pro tiene 4 opciones. */
+    public static final int OPCIONES_REQUERIDAS = 4;
 
-    /** Invariante 1: exactamente una de las 5 es correcta. */
+    /** Invariante 1: exactamente una de las 4 es correcta. */
     public static final int CORRECTAS_REQUERIDAS = 1;
 
     public static final int LONGITUD_MINIMA_OPCION_POR_DEFECTO = 5;
@@ -112,7 +116,7 @@ public class ValidadorEstructural {
         }
     }
 
-    /** Invariante 1: exactamente 4 distractores y 1 opción correcta. */
+    /** Invariante 1: exactamente 3 distractores y 1 opción correcta. */
     private void validarInvariante1(List<Opcion> opciones, List<String> errores) {
         if (opciones.size() != OPCIONES_REQUERIDAS) {
             errores.add("La pregunta debe tener exactamente %d opciones y tiene %d. (Invariante 1)"
@@ -123,7 +127,7 @@ public class ValidadorEstructural {
         if (correctas != CORRECTAS_REQUERIDAS) {
             errores.add("La pregunta debe tener exactamente 1 opción correcta y tiene %d. "
                     .formatted(correctas)
-                    + "Las otras 4 son distractores. (Invariante 1)");
+                    + "Las otras 3 son distractores. (Invariante 1)");
         }
     }
 
@@ -162,7 +166,7 @@ public class ValidadorEstructural {
             String normalizado = normalizar(opciones.get(i).texto());
             if (!vistas.add(normalizado) && yaReportadas.add(normalizado)) {
                 errores.add(("La opción %d está repetida: su texto coincide con el de otra opción. "
-                        + "Las 5 opciones deben ser distintas entre sí. (Invariante 3)")
+                        + "Las 4 opciones deben ser distintas entre sí. (Invariante 3)")
                         .formatted(i + 1));
             }
         }

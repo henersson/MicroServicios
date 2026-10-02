@@ -1,7 +1,7 @@
 {
  "info": {
   "name": "SaberPro - Banco de Preguntas (Taller 2)",
-  "description": "Colección de pruebas del sistema de gestión del banco de preguntas Saber Pro.\n\n**Taller 2 de Arquitectura de Microservicios — Universidad del Cauca.**\n\n---\n\n## Antes de empezar\n\n1. Levanta todo el sistema:\n   ```powershell\n   powershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n   ```\n2. Importa también el environment `SaberPro-local.postman_environment.json` y selecciónalo arriba a la derecha.\n\n## Cómo está organizada\n\n| Carpeta | Para qué |\n|---|---|\n| **0. Comprobación inicial** | Que el sistema responde, y las 2 peticiones de RabbitMQ para ver la asincronía |\n| **1. Banco - Preguntas** | Cada endpoint del `banco-preguntas-service` por separado |\n| **2. Revisión - Revisores y revisiones** | Cada endpoint del `revision-service` por separado |\n| **3. Flujo completo** | El recorrido de punta a punta. **Esta es la que hay que correr con el Collection Runner** |\n| **4. Casos inválidos** | Cada petición debe fallar; los tests comprueban el código y el Problem Details |\n\n## Los pasos asíncronos\n\nTres pasos del flujo dependen de que un evento viaje por RabbitMQ. Sus tests se repiten a sí mismos con `setNextRequest` hasta que el estado cambie (máximo 20 intentos), para que la colección no falle por tiempos.\n\n## Usuarios simulados\n\nNo hay autenticación real: el usuario se declara en cada petición con `X-Usuario-Id` y `X-Usuario-Rol`. Los identificadores están en el environment.\n\n---\n\n## Probar gRPC (hay que crear la petición a mano)\n\nEl `banco-preguntas-service` expone un servidor gRPC en **`localhost:9091`** con **Server Reflection**, así que Postman descubre el servicio solo, sin necesidad de cargar el `.proto`.\n\n**Postman no permite importar peticiones gRPC desde un archivo de colección**, así que hay que crearla una vez a mano.\n\n---\n\n### Pasos\n\n1. Consigue un identificador de pregunta real: corre **1. Banco - Preguntas → Listar preguntas con filtros** y copia el `id` de cualquier elemento de `contenido`.\n2. **New** (botón azul arriba a la izquierda) → **gRPC**.\n3. En la URL escribe **`localhost:9091`**. *Sin* `http://` delante: con `http://` no funciona.\n4. Marca la casilla **Use server reflection**.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el id del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**.\n8. **Save** → guárdala en la carpeta **1. Banco - Preguntas**.\n\n---\n\n### Respuesta esperada\n\nLa pregunta completa, con sus 5 opciones y el campo `es_correcta` en cada una:\n\n```json\n{\n  \"id\": \"3f9a1c52-...\",\n  \"autor_id\": \"a1b2c3d4-...\",\n  \"contexto\": \"Una universidad está migrando su plataforma...\",\n  \"pregunta_directa\": \"¿Cuál es la razón principal...?\",\n  \"opciones\": [\n    { \"texto\": \"Porque el acoplamiento a nivel de datos...\", \"es_correcta\": true },\n    { \"texto\": \"Porque PostgreSQL no admite conexiones...\" }\n  ],\n  \"justificacion\": \"La independencia de despliegue...\",\n  \"competencia_codigo\": \"ING-SOFT\",\n  \"nivel_dificultad\": \"MEDIO\",\n  \"estado\": \"PUBLICADA\"\n}\n```\n\n> En protobuf, un `false` y una cadena vacía **no se serializan**: por eso las opciones incorrectas salen sin el campo `es_correcta`. Es el comportamiento normal de proto3, no un error.\n\n---\n\n### Probar también los errores\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nCódigos propios de gRPC, no un 500 genérico.\n\n---\n\n### El otro método: el que usará el 3er microservicio\n\n`ListarPreguntasPublicadas` devuelve solo preguntas en estado `PUBLICADA`, con filtros opcionales:\n\n```json\n{ \"competencia_codigo\": \"ING-SOFT\", \"limite\": 10 }\n```\n\nUn filtro vacío significa *no filtrar por ese criterio*, y `limite: 0` aplica el valor por defecto de 50.\n\n---\n\n### Si prefieres la línea de comandos\n\n```powershell\ndocker run --rm --network saberpro-net fullstorydev/grpcurl -plaintext `\n  banco-preguntas-service:9091 list saberpro.banco.v1.BancoPreguntas\n```",
+  "description": "Colección de pruebas del sistema de gestión del banco de preguntas Saber Pro.\n\n**Taller 2 de Arquitectura de Microservicios — Universidad del Cauca.**\n\n---\n\n## Antes de empezar\n\n1. Levanta todo el sistema:\n   ```powershell\n   powershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n   ```\n2. Importa también el environment `SaberPro-local.postman_environment.json` y selecciónalo arriba a la derecha.\n\n## Cómo está organizada\n\n| Carpeta | Para qué |\n|---|---|\n| **0. Comprobación inicial** | Que el sistema responde, y las 2 peticiones de RabbitMQ para ver la asincronía |\n| **1. Banco - Preguntas** | Cada endpoint del `banco-preguntas-service` por separado |\n| **2. Revisión - Revisores y revisiones** | Cada endpoint del `revision-service` por separado |\n| **3. Flujo completo** | El recorrido de punta a punta. **Esta es la que hay que correr con el Collection Runner** |\n| **4. Casos inválidos** | Cada petición debe fallar; los tests comprueban el código y el Problem Details |\n\n## Los pasos asíncronos\n\nTres pasos del flujo dependen de que un evento viaje por RabbitMQ. Sus tests se repiten a sí mismos con `setNextRequest` hasta que el estado cambie (máximo 20 intentos), para que la colección no falle por tiempos.\n\n## Usuarios simulados\n\nNo hay autenticación real: el usuario se declara en cada petición con `X-Usuario-Id` y `X-Usuario-Rol`. Los identificadores están en el environment.\n\n---\n\n## Probar gRPC (hay que crear la petición a mano)\n\nEl `banco-preguntas-service` expone un servidor gRPC en **`localhost:9091`** con **Server Reflection**, así que Postman descubre el servicio solo, sin necesidad de cargar el `.proto`.\n\n**Postman no permite importar peticiones gRPC desde un archivo de colección**, así que hay que crearla una vez a mano.\n\n---\n\n### Pasos\n\n1. Consigue un identificador de pregunta real: corre **1. Banco - Preguntas → Listar preguntas con filtros** y copia el `id` de cualquier elemento de `contenido`.\n2. **New** (botón azul arriba a la izquierda) → **gRPC**.\n3. En la URL escribe **`localhost:9091`**. *Sin* `http://` delante: con `http://` no funciona.\n4. Marca la casilla **Use server reflection**.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el id del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**.\n8. **Save** → guárdala en la carpeta **1. Banco - Preguntas**.\n\n---\n\n### Respuesta esperada\n\nLa pregunta completa, con sus 4 opciones y el campo `es_correcta` en cada una:\n\n```json\n{\n  \"id\": \"3f9a1c52-...\",\n  \"autor_id\": \"a1b2c3d4-...\",\n  \"contexto\": \"Una universidad está migrando su plataforma...\",\n  \"pregunta_directa\": \"¿Cuál es la razón principal...?\",\n  \"opciones\": [\n    { \"texto\": \"Porque el acoplamiento a nivel de datos...\", \"es_correcta\": true },\n    { \"texto\": \"Porque PostgreSQL no admite conexiones...\" }\n  ],\n  \"justificacion\": \"La independencia de despliegue...\",\n  \"competencia_codigo\": \"ING-SOFT\",\n  \"nivel_dificultad\": \"MEDIO\",\n  \"estado\": \"PUBLICADA\"\n}\n```\n\n> En protobuf, un `false` y una cadena vacía **no se serializan**: por eso las opciones incorrectas salen sin el campo `es_correcta`. Es el comportamiento normal de proto3, no un error.\n\n---\n\n### Probar también los errores\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nCódigos propios de gRPC, no un 500 genérico.\n\n---\n\n### El otro método: el que usará el 3er microservicio\n\n`ListarPreguntasPublicadas` devuelve solo preguntas en estado `PUBLICADA`, con filtros opcionales:\n\n```json\n{ \"competencia_codigo\": \"ING-SOFT\", \"limite\": 10 }\n```\n\nUn filtro vacío significa *no filtrar por ese criterio*, y `limite: 0` aplica el valor por defecto de 50.\n\n---\n\n### Si prefieres la línea de comandos\n\n```powershell\ndocker run --rm --network saberpro-net fullstorydev/grpcurl -plaintext `\n  banco-preguntas-service:9091 list saberpro.banco.v1.BancoPreguntas\n```",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
  },
  "item": [
@@ -81,11 +81,11 @@
          "const estados = pagina.contenido.map(p => p.estado);",
          "console.log(\"Estados presentes:\", [...new Set(estados)].join(\", \"));",
          "",
-         "// Se guarda una en BORRADOR para poder recorrer el flujo despues.",
-         "const borrador = pagina.contenido.find(p => p.estado === \"BORRADOR\");",
-         "if (borrador) {",
-         "    pm.collectionVariables.set(\"preguntaBorradorId\", borrador.id);",
-         "    console.log(\"Pregunta en BORRADOR lista para el flujo:\", borrador.id);",
+         "// Se guarda la que fue rechazada, para poder reabrirla y corregirla despues.",
+         "const rechazada = pagina.contenido.find(p => p.estado === \"RECHAZADA\");",
+         "if (rechazada) {",
+         "    pm.collectionVariables.set(\"preguntaRechazadaId\", rechazada.id);",
+         "    console.log(\"Pregunta en RECHAZADA lista para corregir:\", rechazada.id);",
          "}"
         ]
        }
@@ -111,7 +111,7 @@
         "{{urlBanco}}/api/v1/preguntas?page=0&size=50"
        ]
       },
-      "description": "Las migraciones de Flyway cargan 3 preguntas de Ingenieria de Sistemas al arrancar.\n\n**Respuesta esperada:** `200` con al menos 3 elementos en `contenido`, y entre ellos una `PUBLICADA`, una `APROBADA` y una `BORRADOR`."
+      "description": "Las migraciones de Flyway cargan 3 preguntas de Ingenieria de Sistemas al arrancar.\n\n**Respuesta esperada:** `200` con al menos 3 elementos en `contenido`, y entre ellos una `PUBLICADA`, una `APROBADA` y una `RECHAZADA`."
      },
      "response": []
     },
@@ -193,7 +193,7 @@
       "description": "Publica un `PreguntaPublicada` de ejemplo en el exchange.\n\n**Asi es como el equipo del `simulacros-service` podra probar su consumidor sin tener que crear una pregunta, enviarla a revision, evaluarla y publicarla cada vez.**\n\nEl cuerpo de esta peticion es el ejemplo de `contracts/events/ejemplos/PreguntaPublicada.v1.json`, recortado.\n\n**Respuesta esperada:** `200` con `{\"routed\": true}`. Si sale `routed: false`, la routing key no llego a ninguna cola: revisala.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"properties\": {\n    \"content_type\": \"application/json\",\n    \"delivery_mode\": 2,\n    \"headers\": {\n      \"eventType\": \"PreguntaPublicada\"\n    },\n    \"message_id\": \"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\"\n  },\n  \"routing_key\": \"banco.pregunta.publicada\",\n  \"payload\": \"{\\\"eventId\\\": \\\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\\", \\\"eventType\\\": \\\"PreguntaPublicada\\\", \\\"eventVersion\\\": 1, \\\"occurredAt\\\": \\\"2026-09-23T12:00:00Z\\\", \\\"source\\\": \\\"banco-preguntas-service\\\", \\\"data\\\": {\\\"pregunta\\\": {\\\"id\\\": \\\"3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c\\\", \\\"autorId\\\": \\\"{{autorId}}\\\", \\\"contexto\\\": \\\"Evento publicado a mano desde Postman para probar un consumidor sin tener que recorrer todo el flujo.\\\", \\\"preguntaDirecta\\\": \\\"¿Que propiedad del acoplamiento entre servicios se prioriza?\\\", \\\"opciones\\\": [{\\\"texto\\\": \\\"El desacoplamiento temporal entre los dos servicios.\\\", \\\"esCorrecta\\\": true}, {\\\"texto\\\": \\\"El desacoplamiento de despliegue por un pipeline comun.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La consistencia fuerte entre las dos bases de datos.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La idempotencia garantizada por el broker.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La tolerancia a particiones que exige el teorema CAP.\\\", \\\"esCorrecta\\\": false}], \\\"justificacion\\\": \\\"Publicar un evento elimina la dependencia temporal: el productor termina su operacion aunque el consumidor este caido.\\\", \\\"bibliografia\\\": [\\\"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns.\\\"], \\\"competenciaCodigo\\\": \\\"ING-SOFT\\\", \\\"competenciaNombre\\\": \\\"Diseño de Software y Arquitectura\\\", \\\"tema\\\": \\\"Arquitectura de Software\\\", \\\"subtema\\\": \\\"Microservicios\\\", \\\"nivelDificultad\\\": \\\"MEDIO\\\", \\\"estado\\\": \\\"PUBLICADA\\\"}}}\",\n  \"payload_encoding\": \"string\"\n}",
+       "raw": "{\n  \"properties\": {\n    \"content_type\": \"application/json\",\n    \"delivery_mode\": 2,\n    \"headers\": {\n      \"eventType\": \"PreguntaPublicada\"\n    },\n    \"message_id\": \"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\"\n  },\n  \"routing_key\": \"banco.pregunta.publicada\",\n  \"payload\": \"{\\\"eventId\\\": \\\"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee\\\", \\\"eventType\\\": \\\"PreguntaPublicada\\\", \\\"eventVersion\\\": 1, \\\"occurredAt\\\": \\\"2026-09-23T12:00:00Z\\\", \\\"source\\\": \\\"banco-preguntas-service\\\", \\\"data\\\": {\\\"pregunta\\\": {\\\"id\\\": \\\"3f9a1c52-8d4e-4b0a-9c77-1f2e3d4a5b6c\\\", \\\"autorId\\\": \\\"{{autorId}}\\\", \\\"contexto\\\": \\\"Evento publicado a mano desde Postman para probar un consumidor sin tener que recorrer todo el flujo.\\\", \\\"preguntaDirecta\\\": \\\"¿Que propiedad del acoplamiento entre servicios se prioriza?\\\", \\\"opciones\\\": [{\\\"texto\\\": \\\"El desacoplamiento temporal entre los dos servicios.\\\", \\\"esCorrecta\\\": true}, {\\\"texto\\\": \\\"El desacoplamiento de despliegue por un pipeline comun.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La consistencia fuerte entre las dos bases de datos.\\\", \\\"esCorrecta\\\": false}, {\\\"texto\\\": \\\"La idempotencia garantizada por el broker.\\\", \\\"esCorrecta\\\": false}], \\\"justificacion\\\": \\\"Publicar un evento elimina la dependencia temporal: el productor termina su operacion aunque el consumidor este caido.\\\", \\\"bibliografia\\\": [\\\"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns.\\\"], \\\"competenciaCodigo\\\": \\\"ING-SOFT\\\", \\\"competenciaNombre\\\": \\\"Diseño de Software y Arquitectura\\\", \\\"tema\\\": \\\"Arquitectura de Software\\\", \\\"subtema\\\": \\\"Microservicios\\\", \\\"nivelDificultad\\\": \\\"MEDIO\\\", \\\"estado\\\": \\\"PUBLICADA\\\"}}}\",\n  \"payload_encoding\": \"string\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -351,8 +351,8 @@
          "",
          "const p = pm.response.json();",
          "pm.test(\"Nace en BORRADOR\", () => pm.expect(p.estado).to.eql(\"BORRADOR\"));",
-         "pm.test(\"Tiene 5 opciones con 1 correcta (invariante 1)\", function () {",
-         "    pm.expect(p.opciones).to.have.lengthOf(5);",
+         "pm.test(\"Tiene 4 opciones con 1 correcta (invariante 1)\", function () {",
+         "    pm.expect(p.opciones).to.have.lengthOf(4);",
          "    pm.expect(p.opciones.filter(o => o.esCorrecta)).to.have.lengthOf(1);",
          "});",
          "pm.test(\"Devuelve la cabecera Location\", function () {",
@@ -394,7 +394,7 @@
       "description": "Crea una pregunta valida. Nace en **BORRADOR**.\n\nGuarda el `id` en la variable `preguntaId` para las siguientes peticiones.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -454,6 +454,7 @@
         "exec": [
          "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
          "const p = pm.response.json();",
+         "pm.test(\"Pasa a EN_CONSTRUCCION\", () => pm.expect(p.estado).to.eql(\"EN_CONSTRUCCION\"));",
          "pm.test(\"El subtema se actualizó\", () => pm.expect(p.subtema).to.eql(\"Mensajería asíncrona y desacoplamiento temporal\"));",
          "pm.test(\"Los acentos llegan intactos\", function () {",
          "    pm.expect(p.contexto).to.include(\"matrículas\");",
@@ -488,10 +489,10 @@
         "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}"
        ]
       },
-      "description": "Reemplaza el contenido. Solo el **autor** y solo en **BORRADOR** (invariante 7).\n\n**Respuesta esperada:** `200` con el contenido nuevo.",
+      "description": "Reemplaza el contenido. Solo el **autor** y solo en **BORRADOR**, **EN_CONSTRUCCION** o **RECHAZADA** (invariante 7). Editarla en BORRADOR la pasa a **EN_CONSTRUCCION**, el unico estado desde el que se envia a revision.\n\n**Respuesta esperada:** `200` con el contenido nuevo.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola. (Corregido por el autor desde Postman.)\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona y desacoplamiento temporal\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola. (Corregido por el autor desde Postman.)\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona y desacoplamiento temporal\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -583,7 +584,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{preguntaId}}/enviar-a-revision"
        ]
       },
-      "description": "Pasa la pregunta a **PENDIENTE_REVISION** y publica `PreguntaEnviadaARevision` en RabbitMQ.\n\nA partir de aqui el flujo sigue solo: revision consume el evento, pide el contenido por gRPC y asigna un revisor."
+      "description": "Pasa la pregunta de **EN_CONSTRUCCION** a **PENDIENTE_REVISION** y publica `PreguntaEnviadaARevision` en RabbitMQ.\n\nA partir de aqui el flujo sigue solo: revision consume el evento, pide el contenido por gRPC y asigna un revisor."
      },
      "response": []
     },
@@ -694,7 +695,8 @@
         "type": "text/javascript",
         "exec": [
          "// La pregunta esta en PENDIENTE_REVISION o EN_REVISION, y desde ahi no se",
-         "// puede archivar: solo desde BORRADOR, APROBADA o PUBLICADA. El 409 es la",
+         "// puede archivar: solo desde BORRADOR, EN_CONSTRUCCION, RECHAZADA, APROBADA o",
+         "// PUBLICADA. El 409 es la",
          "// unica respuesta posible aqui.",
          "pm.test(\"409 porque no se puede archivar desde este estado (invariante 6)\", function () {",
          "    pm.response.to.have.status(409);",
@@ -972,7 +974,7 @@
          "        // elige el AsignadorRevisor segun la carga de cada uno.",
          "        pm.collectionVariables.set(\"revisorAsignadoId\", r.revisorId);",
          "        pm.test(\"El snapshot llegó completo por gRPC\", function () {",
-         "            pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "            pm.expect(r.snapshot.opciones).to.have.lengthOf(4);",
          "            pm.expect(r.snapshot.contexto).to.be.a(\"string\").and.not.empty;",
          "            pm.expect(r.snapshot.competenciaCodigo).to.eql(\"ING-SOFT\");",
          "        });",
@@ -1064,7 +1066,7 @@
          "const r = pm.response.json();",
          "pm.test(\"El formato queda completo\", () => pm.expect(r.formatoCompleto).to.be.true);",
          "pm.test(\"Pasa a EN_EVALUACION\", () => pm.expect(r.estado).to.eql(\"EN_EVALUACION\"));",
-         "pm.test(\"El promedio es 4.4\", () => pm.expect(r.promedio).to.eql(4.4));"
+         "pm.test(\"El promedio es 4.33\", () => pm.expect(r.promedio).to.eql(4.33));"
         ]
        }
       }
@@ -1094,10 +1096,10 @@
         "{{urlRevision}}/api/v1/revisiones/{{revisionId}}/formato"
        ]
       },
-      "description": "Guarda los 5 criterios, de 1 a 5.\n\nSe puede guardar **incompleto**: el revisor puntua lo que lleva y vuelve luego. Lo que no se puede es *decidir* con el formato incompleto (invariante 10).\n\nLa primera vez que se guarda algo, la revision pasa de `ASIGNADA` a `EN_EVALUACION`.",
+      "description": "Guarda los 6 criterios, de 1 a 5. `COHERENCIA_GRAMATICAL` es la parte de la invariante 3 que juzga el revisor.\n\nSe puede guardar **incompleto**: el revisor puntua lo que lleva y vuelve luego. Lo que no se puede es *decidir* con el formato incompleto (invariante 10).\n\nLa primera vez que se guarda algo, la revision pasa de `ASIGNADA` a `EN_EVALUACION`.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"COHERENCIA_GRAMATICAL\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1277,7 +1279,7 @@
       "description": "Punto de partida del flujo: el autor crea la pregunta.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Patrones de integración\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Patrones de integración\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1288,7 +1290,61 @@
      "response": []
     },
     {
-     "name": "F2. Enviar a revisión",
+     "name": "F2. El autor trabaja la pregunta (EN_CONSTRUCCION)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+         "pm.test(\"EN_CONSTRUCCION\", function () {",
+         "    pm.expect(pm.response.json().estado).to.eql(\"EN_CONSTRUCCION\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}"
+       ]
+      },
+      "description": "El autor edita la pregunta: pasa de BORRADOR a **EN_CONSTRUCCION**. Una pregunta recien creada no se puede enviar a revision; primero hay que trabajarla (invariante 6).",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Patrones de integración\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "F3. Enviar a revisión",
      "event": [
       {
        "listen": "test",
@@ -1328,7 +1384,7 @@
      "response": []
     },
     {
-     "name": "F3. (espera) El banco pasa a EN_REVISION",
+     "name": "F4. (espera) El banco pasa a EN_REVISION",
      "event": [
       {
        "listen": "test",
@@ -1361,7 +1417,7 @@
          "    // Espera ocupada de ~700 ms: es lo unico que hay en el sandbox de Postman.",
          "    const hasta = Date.now() + 700;",
          "    while (Date.now() < hasta) { /* esperando */ }",
-         "    postman.setNextRequest(\"F3. (espera) El banco pasa a EN_REVISION\");",
+         "    postman.setNextRequest(\"F4. (espera) El banco pasa a EN_REVISION\");",
          "} else {",
          "    pm.collectionVariables.set(\"intentosEnRevision\", \"0\");",
          "    pm.test(\"estado == EN_REVISION\", function () {",
@@ -1397,7 +1453,7 @@
      "response": []
     },
     {
-     "name": "F4. Buscar la revisión creada",
+     "name": "F5. Buscar la revisión creada",
      "event": [
       {
        "listen": "test",
@@ -1417,7 +1473,7 @@
          "});",
          "pm.test(\"Está ASIGNADA y con el snapshot completo\", function () {",
          "    pm.expect(r.estado).to.eql(\"ASIGNADA\");",
-         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(4);",
          "});",
          "console.log(\"Revision\", r.revisionId, \"asignada a\", r.revisorId);"
         ]
@@ -1449,7 +1505,7 @@
      "response": []
     },
     {
-     "name": "F5. El revisor guarda el formato",
+     "name": "F6. El revisor guarda el formato",
      "event": [
       {
        "listen": "test",
@@ -1459,9 +1515,9 @@
          "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
          "const r = pm.response.json();",
          "pm.expect(r.formatoCompleto).to.be.true;",
-         "pm.test(\"EN_EVALUACION con promedio 4.4\", function () {",
+         "pm.test(\"EN_EVALUACION con promedio 4.33\", function () {",
          "    pm.expect(r.estado).to.eql(\"EN_EVALUACION\");",
-         "    pm.expect(r.promedio).to.eql(4.4);",
+         "    pm.expect(r.promedio).to.eql(4.33);",
          "});"
         ]
        }
@@ -1492,10 +1548,10 @@
         "{{urlRevision}}/api/v1/revisiones/{{flujoRevisionId}}/formato"
        ]
       },
-      "description": "El revisor asignado puntua los 5 criterios. Promedio 4.4, por encima del minimo de 3.0.",
+      "description": "El revisor asignado puntua los 6 criterios. Promedio 4.33, por encima del minimo de 3.0.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 4,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"COHERENCIA_GRAMATICAL\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1506,7 +1562,7 @@
      "response": []
     },
     {
-     "name": "F6. El revisor agrega una observación",
+     "name": "F7. El revisor agrega una observación",
      "event": [
       {
        "listen": "test",
@@ -1558,7 +1614,7 @@
      "response": []
     },
     {
-     "name": "F7. El revisor APRUEBA",
+     "name": "F8. El revisor APRUEBA",
      "event": [
       {
        "listen": "test",
@@ -1612,7 +1668,7 @@
      "response": []
     },
     {
-     "name": "F8. (espera) La pregunta queda APROBADA en el banco",
+     "name": "F9. (espera) La pregunta queda APROBADA en el banco",
      "event": [
       {
        "listen": "test",
@@ -1645,7 +1701,7 @@
          "    // Espera ocupada de ~700 ms: es lo unico que hay en el sandbox de Postman.",
          "    const hasta = Date.now() + 700;",
          "    while (Date.now() < hasta) { /* esperando */ }",
-         "    postman.setNextRequest(\"F8. (espera) La pregunta queda APROBADA en el banco\");",
+         "    postman.setNextRequest(\"F9. (espera) La pregunta queda APROBADA en el banco\");",
          "} else {",
          "    pm.collectionVariables.set(\"intentosAprobada\", \"0\");",
          "    pm.test(\"estado == APROBADA\", function () {",
@@ -1681,7 +1737,7 @@
      "response": []
     },
     {
-     "name": "F9. El administrador publica",
+     "name": "F10. El administrador publica",
      "event": [
       {
        "listen": "test",
@@ -1723,7 +1779,7 @@
      "response": []
     },
     {
-     "name": "F10. Historial completo",
+     "name": "F11. Historial completo",
      "event": [
       {
        "listen": "test",
@@ -1732,9 +1788,10 @@
         "exec": [
          "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
          "const h = pm.response.json();",
-         "pm.test(\"Las 5 transiciones del ciclo de vida\", function () {",
+         "pm.test(\"Las 6 transiciones del ciclo de vida\", function () {",
          "    pm.expect(h.map(c => c.estadoNuevo)).to.eql([",
-         "        \"BORRADOR\", \"PENDIENTE_REVISION\", \"EN_REVISION\", \"APROBADA\", \"PUBLICADA\"]);",
+         "        \"BORRADOR\", \"EN_CONSTRUCCION\", \"PENDIENTE_REVISION\", \"EN_REVISION\", \"APROBADA\",",
+         "        \"PUBLICADA\"]);",
          "});",
          "console.log(h.map(c => `${c.estadoAnterior || \"(nueva)\"} -> ${c.estadoNuevo}`).join(\"\\n\"));"
         ]
@@ -1761,7 +1818,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{flujoPreguntaId}}/historial"
        ]
       },
-      "description": "Cierre del flujo: la traza de las 5 transiciones por las que paso la pregunta, con quien las provoco y por que."
+      "description": "Cierre del flujo: la traza de las 6 transiciones por las que paso la pregunta, con quien las provoco y por que."
      },
      "response": []
     }
@@ -1816,7 +1873,7 @@
       "description": "Los casos invalidos que necesitan una pregunta **en BORRADOR** usan esta, no `{{preguntaId}}`.\n\nEl motivo: al correr la coleccion entera, las carpetas anteriores dejan `{{preguntaId}}` en PUBLICADA, y entonces un caso como *publicar algo que no esta APROBADA* dejaria de probar lo que dice probar. Crear aqui una pregunta propia hace esta carpeta independiente del orden de ejecucion.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Casos límite\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Casos límite\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1827,7 +1884,7 @@
      "response": []
     },
     {
-     "name": "400 - Solo 3 distractores (invariante 1)",
+     "name": "400 - Solo 2 distractores (invariante 1)",
      "event": [
       {
        "listen": "test",
@@ -1852,7 +1909,7 @@
          "pm.test(\"El error cita la invariante 1\", function () {",
          "    const errores = pm.response.json().errores.join(\" | \");",
          "    pm.expect(errores).to.include(\"Invariante 1\");",
-         "    pm.expect(errores).to.include(\"exactamente 5 opciones\");",
+         "    pm.expect(errores).to.include(\"exactamente 4 opciones\");",
          "});"
         ]
        }
@@ -1883,10 +1940,81 @@
         "{{urlBanco}}/api/v1/preguntas"
        ]
       },
-      "description": "Una pregunta Saber Pro tiene exactamente 5 opciones: 4 distractores y 1 correcta. Esta manda solo 4 opciones.",
+      "description": "Una pregunta Saber Pro tiene exactamente 4 opciones: 3 distractores y 1 correcta. Esta manda solo 3 opciones.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": []
+    },
+    {
+     "name": "400 - Cinco opciones, el formato anterior (invariante 1)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+         "",
+         "// Los errores de los DOS servicios tienen la misma forma (RFC 7807), asi que",
+         "// esta comprobacion vale igual para banco y para revision.",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const cuerpo = pm.response.json();",
+         "    pm.expect(cuerpo).to.have.property(\"type\");",
+         "    pm.expect(cuerpo).to.have.property(\"title\");",
+         "    pm.expect(cuerpo).to.have.property(\"status\", pm.response.code);",
+         "    pm.expect(cuerpo).to.have.property(\"detail\");",
+         "    pm.expect(cuerpo).to.have.property(\"errores\");",
+         "    pm.expect(cuerpo.errores).to.be.an(\"array\");",
+         "    console.log(\"detail:\", cuerpo.detail);",
+         "});",
+         "",
+         "pm.test(\"El error cita la invariante 1\", function () {",
+         "    const errores = pm.response.json().errores.join(\" | \");",
+         "    pm.expect(errores).to.include(\"Invariante 1\");",
+         "    pm.expect(errores).to.include(\"exactamente 4 opciones\");",
+         "    pm.expect(errores).to.include(\"tiene 5\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas"
+       ]
+      },
+      "description": "La pregunta pasó de 5 opciones (4 distractores) a 4 (3 distractores), como define el Taller 1. Una pregunta con 5 opciones ya no es válida.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Casos límite\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -1956,7 +2084,7 @@
       "description": "Las formulas del tipo *todas / ninguna de las anteriores* estan prohibidas: convierten la pregunta en un acertijo de estrategia en vez de una medicion de la competencia.\n\nLa comprobacion normaliza tildes, mayusculas y espacios, asi que `TODAS LAS ANTERIORES` o `Todás  las   Anteriores` caen igual.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -2010,7 +2138,7 @@
       "description": "Las opciones tienen una longitud minima configurable (5 caracteres sin espacios por defecto): un distractor de dos letras delata la respuesta.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -2061,7 +2189,7 @@
       "description": "Toda pregunta Saber Pro necesita un contexto (la situacion a analizar) y una pregunta directa (el interrogante). Los dos son obligatorios.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Mensajería asíncrona\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -2169,7 +2297,7 @@
       "description": "Solo el autor edita su pregunta. Esta comprobacion la hace el **agregado**, no el controlador: depende del estado del dominio, no del transporte.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona entre microservicios.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Intento de edición ajena\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"Un equipo desarrolla el backend de una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone que Matrículas publique un evento en un broker de mensajes en lugar de llamar por HTTP a Notificaciones.\",\n  \"preguntaDirecta\": \"¿Qué propiedad del acoplamiento entre servicios se está priorizando con esa decisión?\",\n  \"opciones\": [\n    {\n      \"texto\": \"El desacoplamiento temporal: Matrículas no necesita que Notificaciones esté disponible en el mismo instante para completar su operación.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios desde el mismo pipeline.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La consistencia fuerte, porque el broker garantiza que ambas bases de datos se actualicen en la misma transacción.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"La idempotencia, porque un broker de mensajes nunca entrega el mismo mensaje más de una vez.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"Publicar un evento en lugar de hacer una llamada síncrona elimina la dependencia temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído, y el mensaje espera en la cola.\",\n  \"bibliografia\": [\n    \"Hohpe, G. y Woolf, B. (2003). Enterprise Integration Patterns. Addison-Wesley.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Intento de edición ajena\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -2292,6 +2420,135 @@
      "response": []
     },
     {
+     "name": "404 - Ruta que no existe en el banco",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+         "pm.test(\"El error viene en formato Problem Details\", function () {",
+         "    const e = pm.response.json();",
+         "    pm.expect(e.status).to.eql(404);",
+         "    pm.expect(e.detail).to.include(\"/api/v1/no-existe\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/no-existe",
+       "host": [
+        "{{urlBanco}}/api/v1/no-existe"
+       ]
+      },
+      "description": "Una ruta que la API no tiene responde **404** en formato Problem Details, no un error interno."
+     },
+     "response": []
+    },
+    {
+     "name": "405 - DELETE de una pregunta (invariante 8)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 405\", () => pm.response.to.have.status(405));",
+         "pm.test(\"La cabecera Allow dice qué métodos sí admite la ruta\", function () {",
+         "    pm.expect(pm.response.headers.get(\"Allow\")).to.include(\"GET\");",
+         "});",
+         "pm.test(\"Explica la invariante 8 y cómo archivar\", function () {",
+         "    const e = pm.response.json();",
+         "    pm.expect(e.detail).to.include(\"Invariante 8\");",
+         "    pm.expect(e.errores.join(\" \")).to.include(\"/archivar\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}"
+       ]
+      },
+      "description": "En el banco nada se elimina físicamente: la única salida es archivar (invariante 8, ADR 3). No existe ningún `DELETE`, y si se intenta, la respuesta es **405** con la cabecera `Allow` y un mensaje que explica la regla."
+     },
+     "response": []
+    },
+    {
+     "name": "409 - Enviar a revisión desde BORRADOR (invariante 6)",
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+         "pm.test(\"Explica que primero hay que pasar a EN_CONSTRUCCION\", function () {",
+         "    const e = pm.response.json();",
+         "    pm.expect(e.detail).to.include(\"EN_CONSTRUCCION\");",
+         "    pm.expect(e.detail).to.include(\"Invariante 6\");",
+         "});"
+        ]
+       }
+      }
+     ],
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-Usuario-Id",
+        "value": "{{autorId}}",
+        "type": "text"
+       },
+       {
+        "key": "X-Usuario-Rol",
+        "value": "AUTOR",
+        "type": "text"
+       }
+      ],
+      "url": {
+       "raw": "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/enviar-a-revision",
+       "host": [
+        "{{urlBanco}}/api/v1/preguntas/{{invalidoPreguntaId}}/enviar-a-revision"
+       ]
+      },
+      "description": "Una pregunta recién creada está en `BORRADOR` y no puede saltar a `PENDIENTE_REVISION`: primero tiene que pasar a `EN_CONSTRUCCION`, y eso ocurre al editarla (invariante 6, sin saltos entre estados no consecutivos)."
+     },
+     "response": []
+    },
+    {
      "name": "409 - Publicar una pregunta en BORRADOR",
      "event": [
       {
@@ -2355,7 +2612,7 @@
    "type": "string"
   },
   {
-   "key": "preguntaBorradorId",
+   "key": "preguntaRechazadaId",
    "value": "",
    "type": "string"
   },

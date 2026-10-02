@@ -48,7 +48,6 @@ def snapshot(pregunta_id: UUID = PREGUNTA, autor_id: UUID = AUTOR) -> SnapshotPr
             OpcionSnapshot("PostgreSQL no admite varios clientes concurrentes.", False),
             OpcionSnapshot("El teorema CAP prohíbe compartir un motor relacional.", False),
             OpcionSnapshot("Una base compartida siempre es más costosa de operar.", False),
-            OpcionSnapshot("Los microservicios solo se comunican de forma asíncrona.", False),
         ),
         justificacion=(
             "La independencia de despliegue depende de que cada servicio sea dueño "
@@ -75,7 +74,7 @@ def revision(revisor_id: UUID = REVISOR, pregunta_id: UUID = PREGUNTA) -> Revisi
 
 
 def formato_completo(puntaje: int = 4) -> FormatoEvaluacion:
-    """Formato con los 5 criterios puntuados igual."""
+    """Formato con los 6 criterios puntuados igual."""
     return FormatoEvaluacion({criterio: puntaje for criterio in CriterioEvaluacion})
 
 
@@ -85,7 +84,7 @@ def formato_con(**puntajes_por_criterio: int) -> FormatoEvaluacion:
 
 
 def formato_incompleto() -> FormatoEvaluacion:
-    """Formato con solo 3 de los 5 criterios puntuados."""
+    """Formato con solo 3 de los 6 criterios puntuados."""
     criterios = list(CriterioEvaluacion)[:3]
     return FormatoEvaluacion({criterio: 4 for criterio in criterios})
 

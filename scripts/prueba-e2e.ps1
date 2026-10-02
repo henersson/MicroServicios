@@ -3,9 +3,9 @@
     Prueba integral del sistema completo: banco + revisión + RabbitMQ + gRPC.
 
 .DESCRIPTION
-    Recorre 24 comprobaciones contra el sistema levantado con Docker: el camino
-    feliz de punta a punta, el camino de rechazo, las reglas del dominio y la
-    salud de la mensajería.
+    Recorre 31 comprobaciones contra el sistema levantado con Docker: el camino
+    feliz de punta a punta, el camino de rechazo con la reapertura y el reenvío,
+    las reglas del dominio y la salud de la mensajería.
 
     Crea sus propias preguntas, así que se puede correr las veces que haga falta
     y no depende de datos creados por Postman ni por corridas anteriores.
@@ -13,7 +13,7 @@
     Los pasos asíncronos (los que dependen de un evento de RabbitMQ) esperan
     sondeando cada segundo, con un máximo de 30 s. No hay `sleep` fijos.
 
-    Código de salida: 0 si las 24 pasan, 1 si alguna falla.
+    Código de salida: 0 si las 31 pasan, 1 si alguna falla.
 
 .PARAMETER UrlBanco
     URL base del banco-preguntas-service. Por defecto http://localhost:8081
@@ -150,6 +150,9 @@ function Invocar-Esperando-Error {
                 $respuesta.GetResponseStream(), [Text.Encoding]::UTF8)
             $texto = $lector.ReadToEnd()
             $lector.Close()
+            # Con algunas respuestas, Windows PowerShell 5.1 ya consumió el cuerpo
+            # y lo dejó en ErrorDetails: el flujo llega vacío.
+            if (-not $texto -and $_.ErrorDetails) { $texto = $_.ErrorDetails.Message }
             if ($texto) { $problema = $texto | ConvertFrom-Json }
         } catch {
             # Un error sin cuerpo JSON no invalida la comprobación del código.
@@ -225,8 +228,7 @@ $OpcionesValidas = @(
     @{ texto = 'El desacoplamiento temporal: Matrículas confirma la matrícula aunque Notificaciones esté caído.'; esCorrecta = $true },
     @{ texto = 'El desacoplamiento de despliegue, porque el broker permite desplegar ambos servicios a la vez.'; esCorrecta = $false },
     @{ texto = 'La consistencia fuerte, porque el broker actualiza las dos bases en la misma transacción.'; esCorrecta = $false },
-    @{ texto = 'La idempotencia, porque un broker nunca entrega el mismo mensaje más de una vez.'; esCorrecta = $false },
-    @{ texto = 'La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona.'; esCorrecta = $false }
+    @{ texto = 'La idempotencia, porque un broker nunca entrega el mismo mensaje más de una vez.'; esCorrecta = $false }
 )
 
 $ContextoConTildes = 'Un equipo desarrolla una plataforma de matrículas con dos microservicios: Matrículas y Notificaciones. Cuando un estudiante se matricula, Matrículas debe avisar a Notificaciones para que envíe el correo de confirmación. El arquitecto propone publicar un evento en un broker en vez de llamar por HTTP.'
@@ -257,6 +259,19 @@ $FormatoCompleto = @{
         CLARIDAD_CONTEXTO           = 5
         PERTINENCIA_COMPETENCIA     = 4
         PLAUSIBILIDAD_DISTRACTORES  = 4
+        COHERENCIA_GRAMATICAL       = 4
+        UNICIDAD_RESPUESTA_CORRECTA = 5
+        CALIDAD_JUSTIFICACION       = 4
+    }
+} | ConvertTo-Json -Depth 3
+
+# El mismo formato sin COHERENCIA_GRAMATICAL: así quedaba completo antes de que
+# la parte gramatical de la invariante 3 pasara a ser un criterio del revisor.
+$FormatoSinCoherencia = @{
+    puntajes = @{
+        CLARIDAD_CONTEXTO           = 5
+        PERTINENCIA_COMPETENCIA     = 4
+        PLAUSIBILIDAD_DISTRACTORES  = 4
         UNICIDAD_RESPUESTA_CORRECTA = 5
         CALIDAD_JUSTIFICACION       = 4
     }
@@ -271,6 +286,9 @@ function Nueva-Pregunta-En-Revision {
 
     $pregunta = Invocar -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
         -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Subtema $Subtema)
+    # Se envía desde EN_CONSTRUCCION, y a ese estado se llega editándola.
+    Invocar -Metodo Put -Url "$UrlBanco/api/v1/preguntas/$($pregunta.id)" `
+        -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Subtema $Subtema) | Out-Null
     Invocar -Metodo Post -Url "$UrlBanco/api/v1/preguntas/$($pregunta.id)/enviar-a-revision" `
         -Cabeceras $Autor | Out-Null
 
@@ -323,83 +341,89 @@ Comprobar ($pregunta.estado -eq 'BORRADOR' -and $idFeliz) `
     '4. Pregunta creada en BORRADOR' "id=$idFeliz"
 
 # 5
-$enviada = Invocar -Metodo Post `
-    -Url "$UrlBanco/api/v1/preguntas/$idFeliz/enviar-a-revision" -Cabeceras $Autor
-Comprobar ($enviada.estado -eq 'PENDIENTE_REVISION') '5. Enviada a revisión (PENDIENTE_REVISION)'
+$trabajada = Invocar -Metodo Put -Url "$UrlBanco/api/v1/preguntas/$idFeliz" `
+    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta)
+Comprobar ($trabajada.estado -eq 'EN_CONSTRUCCION') `
+    '5. El autor la edita: pasa a EN_CONSTRUCCION'
 
 # 6
-Esperar-Hasta {
-    (Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idFeliz" -Cabeceras $Autor).estado -eq 'EN_REVISION'
-} '6. El banco pasa solo a EN_REVISION (evento + gRPC + evento)' | Out-Null
+$enviada = Invocar -Metodo Post `
+    -Url "$UrlBanco/api/v1/preguntas/$idFeliz/enviar-a-revision" -Cabeceras $Autor
+Comprobar ($enviada.estado -eq 'PENDIENTE_REVISION') '6. Enviada a revisión (PENDIENTE_REVISION)'
 
 # 7
+Esperar-Hasta {
+    (Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idFeliz" -Cabeceras $Autor).estado -eq 'EN_REVISION'
+} '7. El banco pasa solo a EN_REVISION (evento + gRPC + evento)' | Out-Null
+
+# 8
 $revisiones = Invocar -Metodo Get `
     -Url "$UrlRevision/api/v1/revisiones?preguntaId=$idFeliz" -Cabeceras $Administrador
 $revision = $revisiones[0]
 Comprobar ($revision -and $revision.revisorId -and $revision.estado -eq 'ASIGNADA') `
-    '7. La revisión existe, con revisor asignado y en ASIGNADA' `
+    '8. La revisión existe, con revisor asignado y en ASIGNADA' `
     "revision=$($revision.revisionId) revisor=$($revision.revisorId)"
 
 $Revisor = Cabeceras $revision.revisorId 'REVISOR'
 $idRevisionFeliz = $revision.revisionId
 
-# 8
-Comprobar ($revision.snapshot.opciones.Count -eq 5 `
+# 9
+Comprobar ($revision.snapshot.opciones.Count -eq 4 `
         -and $revision.snapshot.contexto -eq $ContextoConTildes) `
-    '8. El snapshot llegó completo por gRPC, con las tildes intactas' `
+    '9. El snapshot llegó completo por gRPC, con las tildes intactas' `
     "$($revision.snapshot.opciones.Count) opciones, competencia $($revision.snapshot.competenciaCodigo)"
 
-# 9
+# 10
 $conFormato = Invocar -Metodo Put `
     -Url "$UrlRevision/api/v1/revisiones/$idRevisionFeliz/formato" `
     -Cabeceras $Revisor -Cuerpo $FormatoCompleto
 Comprobar ($conFormato.estado -eq 'EN_EVALUACION' -and $conFormato.promedio -ge 3.0) `
-    '9. Formato completo guardado (EN_EVALUACION)' "promedio=$($conFormato.promedio)"
+    '10. Formato completo (6 criterios) guardado (EN_EVALUACION)' "promedio=$($conFormato.promedio)"
 
-# 10
+# 11
 $observacion = @{ texto = 'La pregunta está bien construida. Solo sugiero precisar en el contexto que el broker es persistente.' } | ConvertTo-Json
 $conObservacion = Invocar -Metodo Post `
     -Url "$UrlRevision/api/v1/revisiones/$idRevisionFeliz/observaciones" `
     -Cabeceras $Revisor -Cuerpo $observacion
-Comprobar ($conObservacion.observaciones.Count -ge 1) '10. Observación agregada' `
+Comprobar ($conObservacion.observaciones.Count -ge 1) '11. Observación agregada' `
     "$($conObservacion.observaciones.Count) observación(es)"
 
-# 11
+# 12
 $aprobada = Invocar -Metodo Post `
     -Url "$UrlRevision/api/v1/revisiones/$idRevisionFeliz/decision" `
     -Cabeceras $Revisor -Cuerpo (@{ decision = 'APROBAR' } | ConvertTo-Json)
-Comprobar ($aprobada.estado -eq 'APROBADA') '11. Revisión APROBADA'
+Comprobar ($aprobada.estado -eq 'APROBADA') '12. Revisión APROBADA'
 
-# 12
+# 13
 Esperar-Hasta {
     (Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idFeliz" -Cabeceras $Autor).estado -eq 'APROBADA'
-} '12. El banco pasa solo a APROBADA (PreguntaAprobadaTecnicamente)' | Out-Null
+} '13. El banco pasa solo a APROBADA (PreguntaAprobadaTecnicamente)' | Out-Null
 
-# 13  (se cuentan los mensajes ANTES de publicar, para la comprobación 14)
+# 14  (se cuentan los mensajes ANTES de publicar, para la comprobación 15)
 $antesDePublicar = Mensajes-En-Cola 'simulacros.catalogo-preguntas'
 $publicada = Invocar -Metodo Post `
     -Url "$UrlBanco/api/v1/preguntas/$idFeliz/publicar" -Cabeceras $Administrador
-Comprobar ($publicada.estado -eq 'PUBLICADA') '13. El administrador la publica (PUBLICADA)'
-
-# 14
-Esperar-Hasta {
-    (Mensajes-En-Cola 'simulacros.catalogo-preguntas') -ge ($antesDePublicar + 1)
-} '14. PreguntaPublicada llegó a simulacros.catalogo-preguntas' | Out-Null
-
-# ═════════════════════════════════════════════════════════════════════════════
-Seccion 'CAMINO DE RECHAZO: vuelve al autor con las observaciones'
-# ═════════════════════════════════════════════════════════════════════════════
+Comprobar ($publicada.estado -eq 'PUBLICADA') '14. El administrador la publica (PUBLICADA)'
 
 # 15
+Esperar-Hasta {
+    (Mensajes-En-Cola 'simulacros.catalogo-preguntas') -ge ($antesDePublicar + 1)
+} '15. PreguntaPublicada llegó a simulacros.catalogo-preguntas' | Out-Null
+
+# ═════════════════════════════════════════════════════════════════════════════
+Seccion 'CAMINO DE RECHAZO: RECHAZADA, el autor la reabre y la reenvía'
+# ═════════════════════════════════════════════════════════════════════════════
+
+# 16
 $caso = Nueva-Pregunta-En-Revision -Subtema 'Colas y brokers'
 $idRechazo = $caso.Pregunta.id
 $revisionRechazo = $caso.Revision
 $RevisorRechazo = Cabeceras $revisionRechazo.revisorId 'REVISOR'
 $estadoRechazo = (Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idRechazo" -Cabeceras $Autor).estado
 Comprobar ($estadoRechazo -eq 'EN_REVISION' -and $revisionRechazo.revisionId) `
-    '15. Una segunda pregunta llega a EN_REVISION' "id=$idRechazo"
+    '16. Una segunda pregunta llega a EN_REVISION' "id=$idRechazo"
 
-# 16
+# 17
 Invocar -Metodo Put -Url "$UrlRevision/api/v1/revisiones/$($revisionRechazo.revisionId)/formato" `
     -Cabeceras $RevisorRechazo -Cuerpo $FormatoCompleto | Out-Null
 foreach ($texto in @(
@@ -412,64 +436,115 @@ $rechazada = Invocar -Metodo Post `
     -Url "$UrlRevision/api/v1/revisiones/$($revisionRechazo.revisionId)/decision" `
     -Cabeceras $RevisorRechazo -Cuerpo (@{ decision = 'RECHAZAR' } | ConvertTo-Json)
 Comprobar ($rechazada.estado -eq 'RECHAZADA' -and $rechazada.observaciones.Count -eq 2) `
-    '16. Formato + 2 observaciones + rechazar -> RECHAZADA' `
+    '17. Formato + 2 observaciones + rechazar -> RECHAZADA' `
     "$($rechazada.observaciones.Count) observaciones"
 
-# 17
+# 18
 Esperar-Hasta {
     $actual = Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idRechazo" -Cabeceras $Autor
-    $actual.estado -eq 'BORRADOR' -and -not [string]::IsNullOrWhiteSpace($actual.observacionesUltimaRevision)
-} '17. El banco vuelve solo a BORRADOR y observacionesUltimaRevision no está vacío' | Out-Null
+    $actual.estado -eq 'RECHAZADA' -and -not [string]::IsNullOrWhiteSpace($actual.observacionesUltimaRevision)
+} '18. El banco pasa solo a RECHAZADA y observacionesUltimaRevision no está vacío' | Out-Null
+
+# 19
+$reabierta = Invocar -Metodo Put -Url "$UrlBanco/api/v1/preguntas/$idRechazo" `
+    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Subtema 'Colas y brokers')
+Comprobar ($reabierta.estado -eq 'EN_CONSTRUCCION' `
+        -and -not [string]::IsNullOrWhiteSpace($reabierta.observacionesUltimaRevision)) `
+    '19. El autor la edita: RECHAZADA -> EN_CONSTRUCCION, con las observaciones a la vista'
+
+# 20
+Invocar -Metodo Post -Url "$UrlBanco/api/v1/preguntas/$idRechazo/enviar-a-revision" `
+    -Cabeceras $Autor | Out-Null
+Esperar-Hasta {
+    $actual = Invocar -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idRechazo" -Cabeceras $Autor
+    # Por la tubería: en PowerShell 5.1, @() sobre la lista que devuelve
+    # Invoke-RestMethod la envolvería en otra lista de un solo elemento.
+    $revisionesRechazo = @(Invocar -Metodo Get `
+        -Url "$UrlRevision/api/v1/revisiones?preguntaId=$idRechazo" -Cabeceras $Administrador |
+        ForEach-Object { $_ })
+    $actual.estado -eq 'EN_REVISION' -and $revisionesRechazo.Count -ge 2
+} '20. Reenviada: vuelve sola a EN_REVISION con una revisión nueva' | Out-Null
 
 # ═════════════════════════════════════════════════════════════════════════════
 Seccion 'REGLAS DEL DOMINIO'
 # ═════════════════════════════════════════════════════════════════════════════
 
-# 18
-$tresDistractores = @($OpcionesValidas[0], $OpcionesValidas[1], $OpcionesValidas[2], $OpcionesValidas[3])
-Invocar-Esperando-Error -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
-    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Opciones $tresDistractores) `
-    -EstadoEsperado 400 -PatronEnErrores 'Invariante 1' `
-    -Descripcion '18. Crear con 3 distractores -> 400 citando la invariante 1' | Out-Null
+# 21
+$sinTrabajar = Invocar -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
+    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Subtema 'Invariante 6')
+Invocar-Esperando-Error -Metodo Post `
+    -Url "$UrlBanco/api/v1/preguntas/$($sinTrabajar.id)/enviar-a-revision" `
+    -Cabeceras $Autor -EstadoEsperado 409 -PatronEnErrores 'EN_CONSTRUCCION' `
+    -Descripcion '21. Enviar a revisión desde BORRADOR -> 409 (invariante 6, sin saltos)' | Out-Null
 
-# 19
-$conTodasLasAnteriores = @(
+# 22
+$dosDistractores = @($OpcionesValidas[0], $OpcionesValidas[1], $OpcionesValidas[2])
+Invocar-Esperando-Error -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
+    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Opciones $dosDistractores) `
+    -EstadoEsperado 400 -PatronEnErrores 'Invariante 1' `
+    -Descripcion '22. Crear con 2 distractores (3 opciones) -> 400 citando la invariante 1' | Out-Null
+
+# 23
+$cincoOpciones = @(
     $OpcionesValidas[0], $OpcionesValidas[1], $OpcionesValidas[2], $OpcionesValidas[3],
+    @{ texto = 'La tolerancia a particiones, porque el teorema CAP obliga a usar mensajería asíncrona.'; esCorrecta = $false }
+)
+Invocar-Esperando-Error -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
+    -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Opciones $cincoOpciones) `
+    -EstadoEsperado 400 -PatronEnErrores 'exactamente 4 opciones' `
+    -Descripcion '23. Crear con 5 opciones (4 distractores) -> 400 citando la invariante 1' | Out-Null
+
+# 24
+$conTodasLasAnteriores = @(
+    $OpcionesValidas[0], $OpcionesValidas[1], $OpcionesValidas[2],
     @{ texto = 'Todas las anteriores son correctas.'; esCorrecta = $false }
 )
 Invocar-Esperando-Error -Metodo Post -Url "$UrlBanco/api/v1/preguntas" `
     -Cabeceras $Autor -Cuerpo (Cuerpo-Pregunta -Opciones $conTodasLasAnteriores) `
     -EstadoEsperado 400 -PatronEnErrores 'Invariante 2' `
-    -Descripcion '19. Crear con "Todas las anteriores" -> 400 citando la invariante 2' | Out-Null
+    -Descripcion '24. Crear con "Todas las anteriores" -> 400 citando la invariante 2' | Out-Null
 
-# 20
+# 25
 $casoFormato = Nueva-Pregunta-En-Revision -Subtema 'Patrones de integración'
 $RevisorFormato = Cabeceras $casoFormato.Revision.revisorId 'REVISOR'
+Invocar -Metodo Put -Url "$UrlRevision/api/v1/revisiones/$($casoFormato.Revision.revisionId)/formato" `
+    -Cabeceras $RevisorFormato -Cuerpo $FormatoSinCoherencia | Out-Null
 Invocar-Esperando-Error -Metodo Post `
     -Url "$UrlRevision/api/v1/revisiones/$($casoFormato.Revision.revisionId)/decision" `
     -Cabeceras $RevisorFormato -Cuerpo (@{ decision = 'APROBAR' } | ConvertTo-Json) `
-    -EstadoEsperado 400 -Descripcion '20. Aprobar con el formato incompleto (invariante 10)' | Out-Null
+    -EstadoEsperado 400 -PatronEnErrores 'COHERENCIA_GRAMATICAL' `
+    -Descripcion '25. Aprobar sin juzgar la coherencia gramatical (invariantes 3 y 10)' | Out-Null
 
-# 21
+# 26
 Invocar-Esperando-Error -Metodo Post -Url "$UrlBanco/api/v1/preguntas/$idFeliz/publicar" `
     -Cabeceras $Estudiante -EstadoEsperado 403 `
-    -Descripcion '21. Un ESTUDIANTE no puede publicar' | Out-Null
+    -Descripcion '26. Un ESTUDIANTE no puede publicar' | Out-Null
 
-# 22
+# 27
 Invocar-Esperando-Error -Metodo Get -Url "$UrlBanco/api/v1/preguntas/$idFeliz" `
     -Cabeceras @{} -EstadoEsperado 401 `
-    -Descripcion '22. Banco sin cabeceras de usuario' | Out-Null
+    -Descripcion '27. Banco sin cabeceras de usuario' | Out-Null
 
-# 23
+# 28
 Invocar-Esperando-Error -Metodo Get -Url "$UrlRevision/api/v1/revisiones" `
     -Cabeceras @{} -EstadoEsperado 401 `
-    -Descripcion '23. Revisión sin cabeceras de usuario' | Out-Null
+    -Descripcion '28. Revisión sin cabeceras de usuario' | Out-Null
+
+# 29
+Invocar-Esperando-Error -Metodo Delete -Url "$UrlBanco/api/v1/preguntas/$idFeliz" `
+    -Cabeceras $Administrador -EstadoEsperado 405 -PatronEnErrores 'Invariante 8' `
+    -Descripcion '29. DELETE de una pregunta -> 405: no se borra, se archiva (invariante 8)' | Out-Null
+
+# 30
+Invocar-Esperando-Error -Metodo Get -Url "$UrlBanco/api/v1/no-existe" `
+    -Cabeceras $Administrador -EstadoEsperado 404 `
+    -Descripcion '30. Una ruta que no existe en el banco -> 404' | Out-Null
 
 # ═════════════════════════════════════════════════════════════════════════════
 Seccion 'MENSAJERÍA'
 # ═════════════════════════════════════════════════════════════════════════════
 
-# 24
+# 31
 $dlqConMensajes = @()
 foreach ($dlq in @('revision.preguntas-enviadas.dlq',
                    'banco.resultados-revision.dlq',
@@ -477,7 +552,7 @@ foreach ($dlq in @('revision.preguntas-enviadas.dlq',
     $n = Mensajes-En-Cola $dlq
     if ($n -ne 0) { $dlqConMensajes += "$dlq=$n" }
 }
-Comprobar ($dlqConMensajes.Count -eq 0) '24. Las 3 DLQ están vacías' `
+Comprobar ($dlqConMensajes.Count -eq 0) '31. Las 3 DLQ están vacías' `
     $(if ($dlqConMensajes.Count -eq 0) { 'ningún evento fallido' } else { $dlqConMensajes -join ' ' })
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -496,7 +571,8 @@ if ($script:Falladas -gt 0) {
 Write-Host ''
 Write-Host '  Preguntas usadas en esta corrida:'
 Write-Host "    camino feliz  : $idFeliz (PUBLICADA)"
-Write-Host "    camino rechazo: $idRechazo (BORRADOR con observaciones)"
+Write-Host "    camino rechazo: $idRechazo (rechazada, reabierta y reenviada: EN_REVISION)"
+Write-Host "    invariante 6  : $($sinTrabajar.id) (BORRADOR, no se pudo enviar)"
 Write-Host "    invariante 10 : $($casoFormato.Pregunta.id) (EN_REVISION, sin decidir)"
 
 Write-Host ''

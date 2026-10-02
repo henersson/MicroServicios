@@ -32,7 +32,7 @@ import java.util.Map;
  * <p>Ese rodeo es lo que evita el peor fallo posible en una arquitectura de
  * eventos: anunciar algo que nunca ocurrió. Si la transacción se deshace después
  * de haber publicado, el revision-service se pondría a revisar una pregunta que
- * en el banco sigue en BORRADOR, y nada lo desharía.
+ * en el banco sigue en EN_CONSTRUCCION, y nada lo desharía.
  *
  * <p>Queda una ventana abierta en el sentido contrario: si el proceso muere
  * entre el commit y el envío, el evento se pierde. Se asume conscientemente para

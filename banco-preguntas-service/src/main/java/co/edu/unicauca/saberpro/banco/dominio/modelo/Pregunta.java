@@ -34,13 +34,14 @@ import java.util.UUID;
  *
  * <h2>Invariantes</h2>
  * <ol>
- *   <li>Exactamente 4 opciones incorrectas y 1 correcta. → {@code ValidadorEstructural}</li>
+ *   <li>Exactamente 3 opciones incorrectas y 1 correcta. → {@code ValidadorEstructural}</li>
  *   <li>Ninguna opción del tipo "todas/ninguna de las anteriores". → {@code ValidadorEstructural}</li>
- *   <li>Opciones con longitud mínima y sin repetirse. → {@code ValidadorEstructural}</li>
+ *   <li>Opciones con longitud mínima y sin repetirse; la coherencia gramatical la
+ *       juzga el revisor. → {@code ValidadorEstructural} y el revision-service</li>
  *   <li>Un único contexto y una única pregunta directa, obligatorios. → {@code ValidadorEstructural}</li>
- *   <li>Una pregunta PUBLICADA nunca queda sin sus 5 opciones completas. → {@link #publicar}</li>
+ *   <li>Una pregunta PUBLICADA nunca queda sin sus 4 opciones completas. → {@link #publicar}</li>
  *   <li>Las transiciones respetan la tabla de estados. → {@link EstadoPregunta} y {@link #cambiarEstado}</li>
- *   <li>Solo el autor edita, y solo en BORRADOR. → {@link #editar}</li>
+ *   <li>Solo el autor edita, y solo en BORRADOR, EN_CONSTRUCCION o RECHAZADA. → {@link #editar}</li>
  *   <li>No se elimina físicamente; solo se archiva. → no existe ninguna operación de borrado</li>
  * </ol>
  */
@@ -114,33 +115,45 @@ public class Pregunta {
     /**
      * Reemplaza el contenido de la pregunta.
      *
-     * <p><strong>Invariante 7</strong>: solo el autor, y solo en BORRADOR. Lo
-     * segundo es lo que impide que alguien cambie una pregunta mientras un
-     * revisor la está evaluando, o después de publicada.
+     * <p><strong>Invariante 7</strong>: solo el autor, y solo en BORRADOR,
+     * EN_CONSTRUCCION o RECHAZADA. Lo segundo es lo que impide que alguien cambie
+     * una pregunta mientras un revisor la está evaluando, o después de aprobada.
+     *
+     * <p>Editar en BORRADOR o en RECHAZADA lleva la pregunta a EN_CONSTRUCCION:
+     * es el estado en que el autor la trabaja, y desde el único que puede
+     * enviarla a revisión. Las ediciones siguientes la dejan donde está.
      *
      * @throws AccesoNoAutorizado    si quien edita no es el autor
-     * @throws TransicionInvalida    si la pregunta no está en BORRADOR
+     * @throws TransicionInvalida    si la pregunta no está en un estado editable
      * @throws ReglaDeNegocioViolada si el contenido nuevo incumple las invariantes 1 a 4
      */
     public void editar(UUID usuarioId, ContenidoPregunta contenidoNuevo,
-                       ValidadorEstructural validador) {
+                       ValidadorEstructural validador, Instant ahora) {
         exigirQueSeaElAutor(usuarioId, "editar");
 
         if (!estado.permiteEdicion()) {
             throw new TransicionInvalida(
-                    ("Solo se puede editar una pregunta en BORRADOR, y esta está en %s. "
-                            + "Si fue rechazada, volverá a BORRADOR y podrás corregirla. "
-                            + "(Invariante 7)").formatted(estado));
+                    ("Solo se puede editar una pregunta en BORRADOR, EN_CONSTRUCCION o RECHAZADA, "
+                            + "y esta está en %s. (Invariante 7)").formatted(estado));
         }
 
         exigirContenidoValido(contenidoNuevo, validador,
                 "No se puede guardar la edición porque el contenido no cumple las reglas del banco.");
 
         this.contenido = contenidoNuevo;
+
+        if (estado == EstadoPregunta.BORRADOR) {
+            cambiarEstado(EstadoPregunta.EN_CONSTRUCCION, usuarioId, ahora,
+                    "El autor empezó a trabajar la pregunta.");
+        } else if (estado == EstadoPregunta.RECHAZADA) {
+            cambiarEstado(EstadoPregunta.EN_CONSTRUCCION, usuarioId, ahora,
+                    "El autor reabrió la pregunta rechazada para corregirla.");
+        }
     }
 
     /**
-     * El autor manda la pregunta al ciclo de revisión por pares.
+     * El autor manda la pregunta al ciclo de revisión por pares. Solo se puede
+     * desde EN_CONSTRUCCION (invariante 6).
      *
      * <p>Revalida el contenido aunque ya se validó al crear y al editar: es la
      * última puerta antes de que la pregunta salga de este contexto, y las reglas
@@ -150,6 +163,14 @@ public class Pregunta {
      */
     public void enviarARevision(UUID usuarioId, ValidadorEstructural validador, Instant ahora) {
         exigirQueSeaElAutor(usuarioId, "enviar a revisión");
+
+        if (estado == EstadoPregunta.BORRADOR || estado == EstadoPregunta.RECHAZADA) {
+            throw new TransicionInvalida(
+                    ("Una pregunta en %s no se puede enviar a revisión: primero tiene que pasar a "
+                            + "EN_CONSTRUCCION, y eso ocurre al editarla. (Invariante 6)")
+                            .formatted(estado));
+        }
+
         exigirContenidoValido(contenido, validador,
                 "La pregunta no se puede enviar a revisión porque no cumple las reglas del banco.");
 
@@ -200,12 +221,13 @@ public class Pregunta {
     }
 
     /**
-     * Aplica el evento {@code PreguntaRechazadaPorPares}: la pregunta vuelve a
-     * BORRADOR con las observaciones del revisor visibles para el autor (ADR 2).
+     * Aplica el evento {@code PreguntaRechazadaPorPares}: la pregunta pasa a
+     * RECHAZADA con las observaciones del revisor visibles para el autor, que la
+     * reabre al editarla (ADR 2).
      *
-     * <p>La idempotencia aquí no puede mirar solo el estado, porque BORRADOR
-     * también es el estado de partida: se comprueba que venga de EN_REVISION,
-     * que es el único sitio desde el que un rechazo tiene sentido.
+     * <p>La idempotencia se comprueba con el estado de origen: un rechazo solo
+     * tiene sentido desde EN_REVISION. Si llega repetido, la pregunta ya está en
+     * RECHAZADA (o el autor ya la reabrió) y no se hace nada.
      *
      * @return true si el estado cambió; false si el evento ya estaba aplicado
      */
@@ -214,8 +236,8 @@ public class Pregunta {
         if (estado != EstadoPregunta.EN_REVISION) {
             return false;
         }
-        cambiarEstado(EstadoPregunta.BORRADOR, revisorId, ahora,
-                "Rechazada en la revisión por pares; vuelve al autor para corrección.");
+        cambiarEstado(EstadoPregunta.RECHAZADA, revisorId, ahora,
+                "Rechazada en la revisión por pares; el autor debe corregirla.");
         this.observacionesUltimaRevision = observaciones == null || observaciones.isEmpty()
                 ? "El revisor rechazó la pregunta sin detallar observaciones."
                 : String.join("\n", observaciones);
@@ -227,14 +249,14 @@ public class Pregunta {
      * simulacros.
      *
      * <p><strong>Invariante 5</strong>: antes de publicar se vuelve a comprobar
-     * que las 5 opciones sigan completas. Es la comprobación más importante del
+     * que las 4 opciones sigan completas. Es la comprobación más importante del
      * agregado, porque una pregunta publicada a medias llegaría a un estudiante
      * en una prueba real.
      *
      * <p>Registra el evento {@code PreguntaPublicada} con el contenido completo.
      */
     public void publicar(UUID administradorId, ValidadorEstructural validador, Instant ahora) {
-        // Invariante 5: una pregunta PUBLICADA nunca queda sin sus 5 opciones.
+        // Invariante 5: una pregunta PUBLICADA nunca queda sin sus 4 opciones.
         ValidadorEstructural.ResultadoValidacion resultado = validador.validar(contenido);
         if (!resultado.esValido()) {
             throw new ReglaDeNegocioViolada(

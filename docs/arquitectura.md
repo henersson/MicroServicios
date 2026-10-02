@@ -6,33 +6,32 @@ Los dos microservicios, sus bases de datos, RabbitMQ y el tercer servicio que
 queda pendiente. Cada flecha dice con qué tecnología viaja.
 
 ```mermaid
-flowchart TB
-    subgraph clientes[Clientes]
-        UI[Postman / Swagger / scripts]
+flowchart LR
+    UI["Clientes<br/>Postman · Swagger · scripts"]
+
+    subgraph banco["banco-preguntas-service · Java 21 + Spring Boot"]
+        direction TB
+        BAPI["API REST :8081<br/>+ consumidor de eventos"]
+        BGRPC["Servidor gRPC :9091"]
+    end
+    BDB[("postgres-banco<br/>:5433")]
+
+    subgraph broker["RabbitMQ :5672 · exchange saberpro.eventos"]
+        direction TB
+        Q1[["revision.preguntas-enviadas<br/>PreguntaEnviadaARevision"]]
+        Q2[["banco.resultados-revision<br/>RevisorAsignado<br/>PreguntaAprobadaTecnicamente<br/>PreguntaRechazadaPorPares"]]
+        Q3[["simulacros.catalogo-preguntas<br/>PreguntaPublicada<br/>PreguntaArchivada"]]
     end
 
-    subgraph banco[banco-preguntas-service · Java 21 + Spring Boot]
-        BAPI[API REST :8081]
-        BGRPC[Servidor gRPC :9091]
+    subgraph revision["revision-service · Python 3.13 + FastAPI"]
+        RAPI["API REST :8082<br/>+ consumidor de eventos"]
     end
+    RDB[("postgres-revision<br/>:5434")]
 
-    subgraph revision[revision-service · Python 3.13 + FastAPI]
-        RAPI[API REST :8082]
+    subgraph simulacros["simulacros-service · pendiente"]
+        SAPI["API REST :8083"]
     end
-
-    subgraph simulacros[simulacros-service · pendiente]
-        SAPI[API REST :8083]
-    end
-
-    BDB[(postgres-banco<br/>:5433)]
-    RDB[(postgres-revision<br/>:5434)]
-    SDB[(postgres-simulacros<br/>:5435)]
-
-    subgraph broker[RabbitMQ :5672 · exchange saberpro.eventos]
-        Q1[[revision.preguntas-enviadas]]
-        Q2[[banco.resultados-revision]]
-        Q3[[simulacros.catalogo-preguntas]]
-    end
+    SDB[("postgres-simulacros<br/>:5435")]
 
     UI -->|REST| BAPI
     UI -->|REST| RAPI
@@ -41,18 +40,15 @@ flowchart TB
     RAPI --- RDB
     SAPI -.- SDB
 
-    BAPI -->|RabbitMQ<br/>PreguntaEnviadaARevision| Q1
-    Q1 -->|RabbitMQ| RAPI
+    BAPI -->|"RabbitMQ: publica"| Q1
+    Q1 -->|"RabbitMQ: consume"| RAPI
+    RAPI -->|"RabbitMQ: publica"| Q2
+    Q2 -->|"RabbitMQ: consume"| BAPI
+    BAPI -->|"RabbitMQ: publica"| Q3
+    Q3 -.->|"RabbitMQ: consumirá"| SAPI
 
-    RAPI -->|gRPC<br/>ObtenerPregunta| BGRPC
-
-    RAPI -->|RabbitMQ<br/>RevisorAsignado<br/>PreguntaAprobadaTecnicamente<br/>PreguntaRechazadaPorPares| Q2
-    Q2 -->|RabbitMQ| BAPI
-
-    BAPI -->|RabbitMQ<br/>PreguntaPublicada<br/>PreguntaArchivada| Q3
-    Q3 -.->|RabbitMQ| SAPI
-
-    SAPI -.->|gRPC<br/>ListarPreguntasPublicadas| BGRPC
+    RAPI ==>|"gRPC ObtenerPregunta<br/>(síncrona)"| BGRPC
+    SAPI -.->|"gRPC ListarPreguntasPublicadas"| BGRPC
 
     classDef pendiente stroke-dasharray: 5 5
     class simulacros,SAPI,SDB pendiente
@@ -67,6 +63,8 @@ Lo que conviene mirar en el diagrama:
   cola `banco.resultados-revision`.
 - **La única llamada síncrona entre servicios es gRPC.** Ningún servicio llama
   al REST del otro.
+- **Cada cola nombra los eventos que lleva.** Las flechas dicen quién publica y
+  quién consume; el contrato de cada evento está en [`eventos.md`](eventos.md).
 - **La cola del tercer servicio ya existe.** Guarda los eventos
   `PreguntaPublicada` y `PreguntaArchivada` que todavía no ha consumido nadie.
   Cuando el tercer microservicio se conecte, los encontrará ahí.
@@ -80,8 +78,8 @@ flowchart LR
     SR[Simulacros y Reportes<br/>pendiente]
     UR[Usuarios y Roles<br/>simulado con cabeceras]
 
-    BP -->|"Customer-Supplier<br/>RabbitMQ + gRPC"| CR
-    CR -->|"Published Language<br/>RabbitMQ"| BP
+    CR -->|"Customer-Supplier<br/>RabbitMQ: la decisión"| BP
+    BP -->|"Open Host Service / Published Language<br/>RabbitMQ + gRPC: el contenido"| CR
     BP -->|"Published Language<br/>RabbitMQ"| SR
     SR -.->|"Open Host Service<br/>gRPC"| BP
     UR -.->|"cabeceras X-Usuario-*"| BP
@@ -93,12 +91,18 @@ flowchart LR
 
 | Relación | Patrón DDD | Tecnología | Por qué |
 |---|---|---|---|
-| Banco → Revisión | Customer-Supplier | RabbitMQ (`PreguntaEnviadaARevision`) | El banco decide cuándo empieza una revisión; revisión se adapta a lo que el banco publica |
-| Revisión → Banco (datos) | — | gRPC (`ObtenerPregunta`) | Revisión necesita el contenido a evaluar y el banco lo sirve |
-| Revisión → Banco (decisión) | Published Language | RabbitMQ (3 eventos) | El contrato de los eventos es el lenguaje común; ninguno depende del código del otro |
+| Revisión → Banco (decisión) | **Customer-Supplier**, como en el Taller 1 | RabbitMQ (`RevisorAsignado`, `PreguntaAprobadaTecnicamente`, `PreguntaRechazadaPorPares`) | Revisión es el proveedor: decide si una pregunta queda aprobada o rechazada. El banco es el cliente que necesita ese resultado para reflejar el estado de la pregunta |
+| Banco → Revisión (contenido) | Open Host Service / Published Language | RabbitMQ (`PreguntaEnviadaARevision`) y gRPC (`ObtenerPregunta`) | El banco anuncia cuándo empieza una revisión y sirve el contenido por un contrato estable, pensado para cualquier consumidor; revisión se adapta a él |
 | Banco → Simulacros | Published Language | RabbitMQ (`PreguntaPublicada`, `PreguntaArchivada`) | El catálogo se arma escuchando, sin preguntar |
 | Simulacros → Banco | Open Host Service | gRPC (`ListarPreguntasPublicadas`) | El banco ofrece una operación pensada para cualquier consumidor |
 | Usuarios y Roles → los dos | — | Cabeceras `X-Usuario-Id` y `X-Usuario-Rol` | Ese contexto no se implementa; se simula en el borde de cada servicio |
+
+Banco y Revisión dependen el uno del otro, pero en flujos distintos, y cada flujo
+tiene su propio proveedor. En el **flujo de decisión**, que es el que modela el
+Taller 1, el proveedor es Revisión: el banco consume sus tres eventos y ajusta el
+estado de la pregunta. En el **flujo de contenido** el proveedor es el banco: es
+quien define el evento `PreguntaEnviadaARevision` y el contrato gRPC, y revisión
+los consume tal como vienen.
 
 ## 3. Las 4 capas
 
@@ -164,6 +168,12 @@ Garantiza las **invariantes 1 a 8**: las cuatro de contenido las comprueba
 `ValidadorEstructural`; la 5 y la 6 el propio agregado al cambiar de estado; la 7
 al editar; y la 8 por ausencia, porque no existe ninguna operación de borrado.
 
+De la invariante 3, el banco comprueba la longitud mínima y que las opciones no
+se repitan. La otra mitad, que las opciones tengan una **estructura gramatical
+coherente con la pregunta directa**, no se puede comprobar de forma fiable sin
+análisis de lenguaje natural: la juzga el revisor con el criterio
+`COHERENCIA_GRAMATICAL` del formato de evaluación, en el `revision-service`.
+
 ### `revision-service`
 
 | Elemento | Concepto DDD | Dónde está |
@@ -178,12 +188,27 @@ al editar; y la 8 por ausencia, porque no existe ninguna operación de borrado.
 | `RevisionRepository`, `RevisorRepository` | Repositories | `dominio/repositorios/` |
 
 Garantiza las **invariantes 9 a 11**: la 9 en el constructor, que no deja
-construir una `Revision` sin revisor; la 10 y la 11 al decidir.
+construir una `Revision` sin revisor; la 10 y la 11 al decidir. Como la 10 exige
+el formato completo, también garantiza la parte gramatical de la **invariante 3**:
+ninguna pregunta se aprueba sin que el revisor haya puntuado
+`COHERENCIA_GRAMATICAL`.
 
-### Qué se agregó respecto al Taller 1
+### Qué se agregó o cambió respecto al Taller 1
+
+El Taller 1 define 6 Value Objects en su tabla 2.6 (`Justificación`, `Opción`,
+`Competencia`, `EstadoPregunta`, `NivelDificultad` y `FormatoEvaluación`) y su
+diagrama de arquitectura nombra además `Obs_VO` y `Estado_VO`, que son
+`Observacion` y `EstadoRevision`. Todos están implementados. Los demás Value
+Objects del código son los que se explican aquí.
 
 | Elemento | Por qué |
 |---|---|
+| **Los 8 estados del lenguaje ubicuo** | La pregunta pasa por `BORRADOR`, `EN_CONSTRUCCION`, `PENDIENTE_REVISION`, `EN_REVISION`, `APROBADA`, `RECHAZADA`, `PUBLICADA` y `ARCHIVADA`. El Taller 1 no define en qué se diferencian Borrador y En construcción: se decidió que `BORRADOR` es la pregunta recién creada y `EN_CONSTRUCCION` la que el autor ya está trabajando. Está en ADR 2 |
+| **4 opciones por pregunta** | 3 distractores y 1 correcta (invariante 1). El Taller 1 hablaba de 4 distractores y 1 correcta; se corrigió a 4 opciones en total |
+| **Criterio `COHERENCIA_GRAMATICAL`** | Es la parte de la invariante 3 que no puede comprobar una máquina; la juzga el revisor |
+| **`Bibliografia`, `Tema` y `Subtema`** | El glosario del Taller 1 los nombra como partes de la Pregunta (términos 3, 26 y 27) pero no como Value Objects. Son valores sin identidad con reglas propias al construirse: `Tema` y `Subtema` no pueden estar vacíos, y `Bibliografia` descarta las referencias en blanco y recorta espacios. Por eso se modelaron como Value Objects en lugar de dejarlos como texto suelto |
+| **`Decision` y `CriterioEvaluacion`** | Hacen explícito lo que el Taller 1 describe en prosa: el revisor decide aprobar o rechazar, y el formato de evaluación tiene criterios fijos. Como enumeraciones, un valor inventado no puede llegar al agregado |
+| **`NivelDificultad` en revisión** | Una copia del enum del banco, porque el snapshot la necesita. No se comparte código entre servicios (ADR 5) |
 | Evento **`RevisorAsignado`** | El Taller 1 no lo tenía, y sin él el banco no puede saber si la revisión empezó de verdad. Si no hay revisores disponibles no se crea ninguna revisión, y la pregunta debe quedarse en `PENDIENTE_REVISION` en vez de pasar a `EN_REVISION`. Es lo que hace cumplible la invariante 9 entre dos contextos separados |
 | **`SnapshotPregunta`** | Revisión guarda una copia del contenido que va a evaluar, obtenida por gRPC. Así el revisor juzga algo estable: una edición posterior no cambia lo que ya evaluó, y revisión no tiene que consultar al banco en cada pantalla |
 | **`RevisorDisponible`** | El Bounded Context de Usuarios y Roles no se implementa, así que revisión mantiene su propia lista de revisores |

@@ -19,7 +19,7 @@ import java.util.List;
  * que un campo obligatorio venga, que el nivel sea uno de los tres válidos. Las
  * reglas de negocio de verdad —las invariantes 1 a 4— las aplica
  * {@code ValidadorEstructural} en el dominio, y por eso ahí no se declara
- * {@code @Size(min=5, max=5)} sobre las opciones: si la validación de formato
+ * {@code @Size(min=4, max=4)} sobre las opciones: si la validación de formato
  * rechazara la lista antes, el autor recibiría "tamaño inválido" en vez del
  * mensaje explicativo del banco.
  */
@@ -41,7 +41,7 @@ public record PeticionPregunta(
         @NotBlank(message = "La pregunta directa es obligatoria.")
         String preguntaDirecta,
 
-        @Schema(description = "Exactamente 5 opciones: 4 distractores y 1 correcta "
+        @Schema(description = "Exactamente 4 opciones: 3 distractores y 1 correcta "
                 + "(invariante 1).")
         @NotEmpty(message = "Debes enviar las opciones de respuesta.")
         @Valid
@@ -93,7 +93,7 @@ public record PeticionPregunta(
             @NotBlank(message = "El texto de la opción es obligatorio.")
             String texto,
 
-            @Schema(description = "true en la única opción correcta; false en los 4 distractores.",
+            @Schema(description = "true en la única opción correcta; false en los 3 distractores.",
                     example = "false")
             @NotNull(message = "Hay que indicar si la opción es correcta o no.")
             Boolean esCorrecta) {

@@ -4,18 +4,25 @@ import co.edu.unicauca.saberpro.banco.dominio.excepciones.AccesoNoAutorizado;
 import co.edu.unicauca.saberpro.banco.dominio.excepciones.PreguntaNoEncontrada;
 import co.edu.unicauca.saberpro.banco.dominio.excepciones.ReglaDeNegocioViolada;
 import co.edu.unicauca.saberpro.banco.dominio.excepciones.TransicionInvalida;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Traduce las excepciones a respuestas HTTP en formato
@@ -42,6 +49,10 @@ import java.util.List;
  *       <td>Sabemos quién eres y no puedes hacer esto</td></tr>
  *   <tr><td>{@code PreguntaNoEncontrada}</td><td>404</td>
  *       <td>El recurso no existe</td></tr>
+ *   <tr><td>{@code NoResourceFoundException}</td><td>404</td>
+ *       <td>La ruta no existe en esta API</td></tr>
+ *   <tr><td>{@code HttpRequestMethodNotSupportedException}</td><td>405</td>
+ *       <td>La ruta existe, pero no con ese método HTTP</td></tr>
  *   <tr><td>{@code TransicionInvalida}</td><td>409</td>
  *       <td>La petición está bien, choca con el estado actual</td></tr>
  * </table>
@@ -55,6 +66,9 @@ public class ManejadorGlobalErrores {
 
     /** Nombre del campo no estándar con el detalle de cada regla incumplida. */
     private static final String CAMPO_ERRORES = "errores";
+
+    /** {@code /api/v1/preguntas/{id}}: la ruta sobre la que alguien intentaría un DELETE. */
+    private static final Pattern RUTA_PREGUNTA = Pattern.compile("^/api/v1/preguntas/[^/]+/?$");
 
     // ─────────────────────────────────────────────────────────────────────────
     // Excepciones del dominio
@@ -144,6 +158,58 @@ public class ManejadorGlobalErrores {
                 "Comprueba que el JSON esté bien formado y que el Content-Type sea "
                         + "application/json.",
                 List.of());
+    }
+
+    /**
+     * La ruta no existe en esta API.
+     *
+     * <p>Sin este manejador, la excepción caía en la red de seguridad y la
+     * respuesta era un 500, como si el servicio hubiera fallado.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail manejarRutaInexistente(NoResourceFoundException e,
+                                                HttpServletRequest peticion) {
+        return problema(HttpStatus.NOT_FOUND,
+                "ruta-inexistente",
+                "La ruta no existe",
+                "No existe %s %s en esta API. Las rutas disponibles están en /swagger-ui.html."
+                        .formatted(peticion.getMethod(), peticion.getRequestURI()),
+                List.of());
+    }
+
+    /**
+     * La ruta existe, pero no admite ese método HTTP. Responde 405 con la
+     * cabecera {@code Allow}, que dice qué métodos sí admite.
+     *
+     * <p>El {@code DELETE} sobre una pregunta tiene un mensaje propio: no es un
+     * descuido de la API, es la <strong>invariante 8</strong>. En el banco nada se
+     * elimina físicamente; la única salida del ciclo de vida es archivar (ADR 3).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> manejarMetodoNoPermitido(
+            HttpRequestMethodNotSupportedException e, HttpServletRequest peticion) {
+        boolean borraUnaPregunta = HttpMethod.DELETE.matches(e.getMethod())
+                && RUTA_PREGUNTA.matcher(peticion.getRequestURI()).matches();
+
+        ProblemDetail cuerpo = borraUnaPregunta
+                ? problema(HttpStatus.METHOD_NOT_ALLOWED,
+                        "pregunta-no-se-elimina",
+                        "Las preguntas no se eliminan",
+                        "Una pregunta nunca se elimina físicamente: solo se archiva, para "
+                                + "conservar su historial. (Invariante 8)",
+                        List.of("Para retirarla de circulación usa POST "
+                                + "/api/v1/preguntas/{id}/archivar con el rol ADMINISTRADOR."))
+                : problema(HttpStatus.METHOD_NOT_ALLOWED,
+                        "metodo-no-permitido",
+                        "Método HTTP no permitido",
+                        "La ruta %s no admite el método %s."
+                                .formatted(peticion.getRequestURI(), e.getMethod()),
+                        List.of());
+
+        Set<HttpMethod> permitidos = e.getSupportedHttpMethods();
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .allow(permitidos == null ? new HttpMethod[0] : permitidos.toArray(HttpMethod[]::new))
+                .body(cuerpo);
     }
 
     /** Un parámetro de ruta o de consulta no tiene el tipo esperado. */

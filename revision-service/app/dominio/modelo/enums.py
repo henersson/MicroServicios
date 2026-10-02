@@ -64,15 +64,22 @@ class Decision(str, Enum):
 
 
 class CriterioEvaluacion(str, Enum):
-    """Los 5 criterios del formato de evaluación por pares (sección 5.2).
+    """Los 6 criterios del formato de evaluación por pares (sección 5.2).
 
     Son fijos y forman parte del contrato: el formato está completo cuando los
-    cinco tienen puntaje, ni uno menos (invariante 10).
+    seis tienen puntaje, ni uno menos (invariante 10).
+
+    ``COHERENCIA_GRAMATICAL`` cubre la parte de la invariante 3 que una máquina
+    no puede comprobar: que las opciones tengan una estructura gramatical
+    coherente con la pregunta directa. El banco valida la longitud y que no se
+    repitan; la coherencia la juzga el revisor, y como el formato tiene que estar
+    completo para decidir, ninguna pregunta se aprueba sin ese juicio.
     """
 
     CLARIDAD_CONTEXTO = "CLARIDAD_CONTEXTO"
     PERTINENCIA_COMPETENCIA = "PERTINENCIA_COMPETENCIA"
     PLAUSIBILIDAD_DISTRACTORES = "PLAUSIBILIDAD_DISTRACTORES"
+    COHERENCIA_GRAMATICAL = "COHERENCIA_GRAMATICAL"
     UNICIDAD_RESPUESTA_CORRECTA = "UNICIDAD_RESPUESTA_CORRECTA"
     CALIDAD_JUSTIFICACION = "CALIDAD_JUSTIFICACION"
 

@@ -24,7 +24,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code RevisorAsignado}              → PENDIENTE_REVISION → EN_REVISION</li>
  *   <li>{@code PreguntaAprobadaTecnicamente} → EN_REVISION → APROBADA</li>
- *   <li>{@code PreguntaRechazadaPorPares}    → EN_REVISION → BORRADOR + observaciones</li>
+ *   <li>{@code PreguntaRechazadaPorPares}    → EN_REVISION → RECHAZADA + observaciones</li>
  * </ul>
  *
  * <h2>Cómo trata los fallos</h2>

@@ -94,8 +94,8 @@ imprescindibles la demostración cabe en **10 minutos**.
 | Petición | Imp. | Qué haces | Qué debe ver el profesor | Dónde mirar además | Rúbrica |
 |---|---|---|---|---|---|
 | **05 · Crear una pregunta inválida → 400** | **Sí** | Send | Un `400` con tres errores, cada uno citando su invariante | — | C1, C3 |
-| **06 · Crear la pregunta válida → 201 BORRADOR** | **Sí** | Send | `201` y estado `BORRADOR`, con 5 opciones y una correcta | — | C1, C3 |
-| **07 · Consultar la pregunta** | No | Send | La pregunta completa, buscada por el id que se guardó solo | — | C3 |
+| **06 · Crear la pregunta válida → 201 BORRADOR** | **Sí** | Send | `201` y estado `BORRADOR`, con 4 opciones y una correcta | — | C1, C3 |
+| **07 · El autor trabaja la pregunta → EN_CONSTRUCCION** | **Sí** | Send | Estado `EN_CONSTRUCCION`: sin ese paso no se puede enviar a revisión (invariante 6) | — | C1, C3 |
 | *(abrir Swagger)* | **Sí** | Trae al frente el navegador | Los 8 endpoints del banco y los 7 de revisión, documentados | Las dos pestañas de Swagger | C3 |
 
 ### Carpeta 3 · Evento + gRPC: los servicios se coordinan solos
@@ -106,7 +106,7 @@ importante de la demostración.
 | Petición | Imp. | Qué haces | Qué debe ver el profesor | Dónde mirar además | Rúbrica |
 |---|---|---|---|---|---|
 | **08 · Enviar a revisión → PENDIENTE_REVISION** | **Sí** | Send | `PENDIENTE_REVISION`. El banco publica un evento y sigue, sin llamar a nadie | **Logs:** `Evento publicado … PreguntaEnviadaARevision` | C4 |
-| **09 · La revisión que se creó sola, con el snapshot de gRPC** | **Sí** | Send (espera unos segundos) | Una revisión en `ASIGNADA`, con revisor y con las 5 opciones del snapshot traído por gRPC | **Logs:** `gRPC ObtenerPregunta … obtenida del banco` y `revisión … creada` | C3, C4, C5 |
+| **09 · La revisión que se creó sola, con el snapshot de gRPC** | **Sí** | Send (espera unos segundos) | Una revisión en `ASIGNADA`, con revisor y con las 4 opciones del snapshot traído por gRPC | **Logs:** `gRPC ObtenerPregunta … obtenida del banco` y `revisión … creada` | C3, C4, C5 |
 | **09b · gRPC ObtenerPregunta** | **Sí** | Invoke | La pregunta devuelta por gRPC, con `es_correcta` solo en la correcta | — | C3 |
 | **10 · La pregunta ya está EN_REVISION en el banco** | **Sí** | Send (espera unos segundos) | `EN_REVISION`. El banco cambió solo al consumir `RevisorAsignado` | **Logs:** `pasó a EN_REVISION` | C4, C5 |
 
@@ -114,7 +114,7 @@ importante de la demostración.
 
 | Petición | Imp. | Qué haces | Qué debe ver el profesor | Dónde mirar además | Rúbrica |
 |---|---|---|---|---|---|
-| **11 · Guardar el formato de evaluación → EN_EVALUACION** | **Sí** | Send | `EN_EVALUACION` y el promedio de los 5 criterios | — | C1 |
+| **11 · Guardar el formato de evaluación → EN_EVALUACION** | **Sí** | Send | `EN_EVALUACION` y el promedio de los 6 criterios | — | C1 |
 | **12 · Agregar una observación** | No | Send | La observación con su revisor y su fecha | — | C1 |
 | **13 · Aprobar → revisión APROBADA** | **Sí** | Send | La revisión queda `APROBADA` | **Logs:** `PreguntaAprobadaTecnicamente` | C4 |
 | **14 · La pregunta queda APROBADA en el banco** | **Sí** | Send (espera unos segundos) | `APROBADA` en el otro servicio, sin tocar nada más | **Logs:** el banco aplicando el evento | C4, C5 |
@@ -140,8 +140,8 @@ importante de la demostración.
 
 Se muestran solo si sobra tiempo o si el profesor pregunta:
 
-- **7 · Extra: el camino de rechazo (opcional)** (peticiones 22 y 23): la pregunta vuelve a
-  `BORRADOR` con las observaciones del revisor.
+- **7 · Extra: el camino de rechazo (opcional)** (peticiones 22 y 23): la pregunta queda en
+  `RECHAZADA` con las observaciones del revisor.
 - **8 · Extra: un evento que falla no se pierde (opcional)** (24, 25 y 26): se inyecta un evento
   imposible y se ve aparecer en la DLQ. La 26 vacía la DLQ y deja el sistema
   limpio.
@@ -176,9 +176,9 @@ y lo imprime en pantalla:
 powershell -ExecutionPolicy Bypass -File .\scripts\prueba-e2e.ps1
 ```
 
-Son **24 comprobaciones** en unos 12 segundos: el camino feliz completo con sus
-eventos y su llamada gRPC, el camino de rechazo, las reglas del dominio, el 401,
-el 403 y que las 3 DLQ están vacías. Sirve perfectamente como demostración.
+Son **31 comprobaciones** en unos 15 segundos: el camino feliz completo con sus
+eventos y su llamada gRPC, el camino de rechazo con la reapertura y el reenvío,
+las reglas del dominio, el 401, el 403, el 405 de un `DELETE`, el 404 y que las 3 DLQ están vacías. Sirve perfectamente como demostración.
 
 **Plan C, si Docker no arranca.** No se puede mostrar el sistema en vivo, así que
 se explica con los diagramas: los de secuencia de

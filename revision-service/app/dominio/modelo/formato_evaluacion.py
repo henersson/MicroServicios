@@ -15,7 +15,7 @@ PUNTAJE_MAXIMO = 5
 
 @dataclass(frozen=True, slots=True)
 class FormatoEvaluacion:
-    """Value Object del BC Ciclo de Vida y Revisión: los 5 criterios puntuados.
+    """Value Object del BC Ciclo de Vida y Revisión: los 6 criterios puntuados.
 
     Es **inmutable**, como todo Value Object: guardar el formato no modifica el
     existente, lo reemplaza por otro. Eso hace imposible que quede a medias por
@@ -79,7 +79,7 @@ class FormatoEvaluacion:
         return cls({CriterioEvaluacion.desde_texto(k): v for k, v in puntajes.items()})
 
     def esta_completo(self) -> bool:
-        """¿Están puntuados los 5 criterios? (invariante 10)"""
+        """¿Están puntuados los 6 criterios? (invariante 10)"""
         return len(self.puntajes) == len(CriterioEvaluacion)
 
     def criterios_faltantes(self) -> list[CriterioEvaluacion]:

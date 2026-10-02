@@ -19,6 +19,9 @@ sequenceDiagram
     Note over B: ValidadorEstructural comprueba<br/>las invariantes 1 a 4
     B-->>Autor: 201 BORRADOR
 
+    Autor->>B: PUT /api/v1/preguntas/{id}
+    B-->>Autor: 200 EN_CONSTRUCCION
+
     Autor->>B: POST /{id}/enviar-a-revision
     B-->>Autor: 200 PENDIENTE_REVISION
     B->>MQ: PreguntaEnviadaARevision
@@ -36,7 +39,7 @@ sequenceDiagram
     Revisor->>R: POST /{id}/observaciones
     R-->>Revisor: 201
     Revisor->>R: POST /{id}/decision APROBAR
-    Note over R: invariante 10: formato completo<br/>y promedio ≥ 3.0
+    Note over R: invariante 10: formato completo<br/>(6 criterios) y promedio ≥ 3.0
     R-->>Revisor: 200 APROBADA
     R->>MQ: PreguntaAprobadaTecnicamente
 
@@ -51,6 +54,8 @@ sequenceDiagram
 
 Lo importante de este diagrama:
 
+- **Una pregunta recién creada no se envía directamente.** Primero el autor la
+  edita y pasa a `EN_CONSTRUCCION`; solo desde ahí se envía (invariante 6).
 - **Entre `PENDIENTE_REVISION` y `EN_REVISION` el autor no hace nada.** El cambio
   lo provocan un evento, una llamada gRPC y otro evento. En la práctica tarda
   un par de segundos.
@@ -61,7 +66,7 @@ Lo importante de este diagrama:
 - **El estado lo cambia siempre el agregado**, comprobando su máquina de estados.
   Un evento que pida una transición imposible se rechaza.
 
-## 2. Camino de rechazo: vuelve al autor con las observaciones
+## 2. Camino de rechazo: el autor la reabre y la reenvía
 
 ```mermaid
 sequenceDiagram
@@ -84,19 +89,20 @@ sequenceDiagram
     R->>MQ: PreguntaRechazadaPorPares<br/>con las observaciones
 
     MQ->>B: consume el evento
-    Note over B: EN_REVISION → BORRADOR<br/>guarda observacionesUltimaRevision
+    Note over B: EN_REVISION → RECHAZADA<br/>guarda observacionesUltimaRevision
 
     Autor->>B: GET /api/v1/preguntas/{id}
-    B-->>Autor: BORRADOR + las observaciones
+    B-->>Autor: RECHAZADA + las observaciones
 
     Autor->>B: PUT /api/v1/preguntas/{id}
+    B-->>Autor: 200 EN_CONSTRUCCION (la reabre)
     Autor->>B: POST /{id}/enviar-a-revision
-    Note over B: vuelve a empezar el ciclo
+    Note over B: vuelve a empezar el ciclo,<br/>con una revisión nueva
 ```
 
-**No existe un estado `RECHAZADA` en el banco.** Una pregunta rechazada vuelve a
-`BORRADOR` con las observaciones del revisor, porque lo que se espera es que el
-autor la corrija y la reenvíe, no que se descarte. Está explicado en
+**Una pregunta rechazada no se descarta.** Queda en `RECHAZADA` con las
+observaciones del revisor, y el autor la reabre al editarla: pasa a
+`EN_CONSTRUCCION` y desde ahí la reenvía. Está explicado en
 [`decisiones.md`](decisiones.md) como ADR 2.
 
 ## 3. Qué pasa cuando algo falla

@@ -52,7 +52,7 @@ serviría para un contexto de reportes o de seguimiento académico.
 ## Qué guardar de cada `PreguntaPublicada`
 
 El evento llega con la pregunta completa. Conviene guardar: el identificador, el
-contexto y la pregunta directa, las 5 opciones con su marca de correcta, la
+contexto y la pregunta directa, las 4 opciones con su marca de correcta, la
 competencia, el tema y el nivel de dificultad. Con eso se arma un simulacro y se
 califica sin volver a preguntar al banco.
 

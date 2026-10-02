@@ -24,7 +24,7 @@ Hay que importar **3 archivos**, todos en la carpeta `postman/` del repositorio:
 | Archivo | Qué es |
 |---|---|
 | `SaberPro-DEMO.postman_collection.json` | La colección de la demostración: 26 peticiones numeradas |
-| `SaberPro.postman_collection.json` | La colección completa de pruebas: 45 peticiones |
+| `SaberPro.postman_collection.json` | La colección completa de pruebas: 50 peticiones |
 | `SaberPro-local.postman_environment.json` | El environment: las direcciones y los usuarios simulados |
 
 Pasos:
@@ -149,7 +149,7 @@ que hay que crearla a mano. Se hace **una sola vez** y queda guardada.
    ```json
    { "pregunta_id": "PEGA_AQUI_EL_ID" }
    ```
-7. Haz clic en **Invoke**. Debe devolver la pregunta completa con sus 5 opciones.
+7. Haz clic en **Invoke**. Debe devolver la pregunta completa con sus 4 opciones.
 8. Haz clic en **Save**. Guárdala dentro de la carpeta
    **3 · Evento + gRPC** de la colección DEMO, justo después de la 09, con el
    nombre **`09b · gRPC ObtenerPregunta`**.
