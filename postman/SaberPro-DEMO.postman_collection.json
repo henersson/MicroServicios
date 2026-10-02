@@ -1,7 +1,7 @@
 {
  "info": {
   "name": "SaberPro — DEMO sustentación",
-  "description": "Colección preparada para la sustentación del Taller 2 de Arquitectura de\nMicroservicios. **Universidad del Cauca, 2026-2.**\n\nEstá pensada para proyectar: cada petición trae su documentación, sus pruebas y\nun visualizador con letra grande. Se manda cada petición en orden, de la 01 a la\n26, sin escribir nada: los identificadores se guardan solos en variables y los\npasos que dependen de un evento esperan por su cuenta.\n\n## Antes de empezar\n\nArranque limpio, desde la carpeta del repositorio:\n\n```powershell\npowershell -ExecutionPolicy Bypass -File .\\scripts\\bajar.ps1 -Volumenes\npowershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n```\n\nSelecciona arriba a la derecha el environment **SaberPro - local (Docker)**. Sin\nél, las peticiones no resuelven las direcciones.\n\n## Las dos guías\n\n| Documento | Para qué |\n|---|---|\n| `docs/GUIA_POSTMAN.md` | Cómo usar Postman desde cero: importar, seleccionar el environment, mandar una petición, ver el visualizador, crear la petición gRPC |\n| `docs/GUIA_DEMO.md` | El guion de la demostración: qué mandar, en qué orden, qué debe ver el profesor y qué hacer si algo falla |\n\n## Orden de uso\n\nSe manda **una petición cada vez, en orden**, con el botón **Send**. No hace\nfalta el Runner: ninguna petición depende de él. De la 01 a la 07 se pueden\nrepetir cuantas veces se quiera; de la 08 en adelante cada una usa lo que\nguardó la anterior, así que el orden importa.\n\nLas siglas C1–C6 son los criterios de la rúbrica; ver `docs/sustentacion.md`.\n\n| Carpeta | Criterio de la rúbrica | ¿Opcional? |\n|---|---|---|\n| 1 · El sistema está arriba | C2 | no |\n| 2 · REST y reglas del dominio | C1, C3 | no |\n| 3 · Evento + gRPC | C3, C4, C5 | no |\n| 4 · La revisión por pares | C1, C4 | no |\n| 5 · Publicación y el evento para el tercer microservicio | C4, C5 | no |\n| 6 · Seguridad y reglas del dominio | C1, C3 | no |\n| 7 · El camino de rechazo | C4, C5 | sí |\n| 8 · Un evento que falla no se pierde | C4 | sí |\n\nLas carpetas 7 y 8 son extras: se muestran si sobra tiempo o si el profesor\npregunta por el rechazo o por los fallos. La 8 termina vaciando la DLQ, así que\ndeja el sistema limpio.\n\nLas peticiones 01 a 07 se pueden repetir cuantas veces se quiera. De la 08 en\nadelante hay un orden: cada una usa lo que guardó la anterior.\n\n## Crear la petición gRPC (hay que hacerlo a mano una vez)\n\nPostman no permite importar peticiones gRPC desde un archivo de colección, así\nque hay que crearla. Va en la **carpeta 3, justo después de la 09**.\n\n1. Manda la petición **09** y copia el valor de la variable `demoPreguntaId`\n   (pestaña *Variables* de la colección, o el `console.log` de la 06).\n2. **New** (botón azul, arriba a la izquierda) → **gRPC**.\n3. En la URL escribe `localhost:9091`. **Sin `http://` delante**: con `http://`\n   no funciona.\n4. Marca la casilla **Use server reflection**. El servidor publica su propio\n   contrato, así que no hay que cargar el `.proto`.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el identificador del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**. Debe devolver la pregunta completa con sus 5 opciones.\n8. **Save** → guárdala en la carpeta *3 · Evento + gRPC*, después de la 09, con\n   el nombre `09b · gRPC ObtenerPregunta`.\n\nPara mostrar también los errores de gRPC:\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nEn proto3 un `false` y una cadena vacía no se serializan, así que las opciones\nincorrectas llegan sin el campo `es_correcta`. Es el comportamiento normal de\nprotobuf, no un error.\n\n## Si algo falla\n\n- **Una petición con espera agota los 20 s:** mira los logs con\n  `docker compose logs -f revision-service` y comprueba que los 5 contenedores\n  estén `healthy`.\n- **Todas las peticiones fallan:** casi siempre es el environment sin\n  seleccionar.\n- **Plan B:** `powershell -ExecutionPolicy Bypass -File .\\scripts\\prueba-e2e.ps1`\n  recorre lo mismo en un comando y muestra 24 comprobaciones.\n\nLa guía completa de la sustentación está en `docs/sustentacion.md`.\n",
+  "description": "Colección preparada para la sustentación del Taller 2 de Arquitectura de\nMicroservicios. **Universidad del Cauca, 2026-2.**\n\nEstá pensada para proyectar: cada petición trae su documentación, sus pruebas y\nun visualizador con letra grande. Se manda cada petición en orden, de la 01 a la\n26, sin escribir nada: los identificadores se guardan solos en variables y los\npasos que dependen de un evento esperan por su cuenta.\n\n## Antes de empezar\n\nArranque limpio, desde la carpeta del repositorio:\n\n```powershell\npowershell -ExecutionPolicy Bypass -File .\\scripts\\bajar.ps1 -Volumenes\npowershell -ExecutionPolicy Bypass -File .\\scripts\\levantar.ps1\n```\n\nSelecciona arriba a la derecha el environment **SaberPro - local (Docker)**. Sin\nél, las peticiones no resuelven las direcciones.\n\n## Las dos guías\n\n| Documento | Para qué |\n|---|---|\n| `docs/GUIA_POSTMAN.md` | Cómo usar Postman desde cero: importar, seleccionar el environment, mandar una petición, ver el visualizador, crear la petición gRPC |\n| `docs/GUIA_DEMO.md` | El guion de la demostración: qué mandar, en qué orden, qué debe ver el profesor y qué hacer si algo falla |\n\n## Orden de uso\n\nSe manda **una petición cada vez, en orden**, con el botón **Send**. No hace\nfalta el Runner: ninguna petición depende de él. De la 01 a la 07 se pueden\nrepetir cuantas veces se quiera; de la 08 en adelante cada una usa lo que\nguardó la anterior, así que el orden importa.\n\nLas siglas C1–C6 son los criterios de la rúbrica; ver `docs/sustentacion.md`.\n\n| Carpeta | Criterio de la rúbrica | ¿Opcional? |\n|---|---|---|\n| 1 · El sistema está arriba | C2 | no |\n| 2 · REST y reglas del dominio | C1, C3 | no |\n| 3 · Evento + gRPC | C3, C4, C5 | no |\n| 4 · La revisión por pares | C1, C4 | no |\n| 5 · Publicación y el evento para el tercer microservicio | C4, C5 | no |\n| 6 · Seguridad y reglas del dominio | C1, C3 | no |\n| 7 · El camino de rechazo | C4, C5 | sí |\n| 8 · Un evento que falla no se pierde | C4 | sí |\n\nLas carpetas 7 y 8 son extras: se muestran si sobra tiempo o si el profesor\npregunta por el rechazo o por los fallos. La 8 termina vaciando la DLQ, así que\ndeja el sistema limpio.\n\nLas peticiones 01 a 07 se pueden repetir cuantas veces se quiera. De la 08 en\nadelante hay un orden: cada una usa lo que guardó la anterior.\n\n## Crear la petición gRPC (hay que hacerlo a mano una vez)\n\nPostman no permite importar peticiones gRPC desde un archivo de colección, así\nque hay que crearla. Va en la **carpeta 3, justo después de la 09**.\n\n1. Manda la petición **09** y copia el valor de la variable `demoPreguntaId`\n   (pestaña *Variables* de la colección, o el `console.log` de la 06).\n2. **New** (botón azul, arriba a la izquierda) → **gRPC**.\n3. En la URL escribe `localhost:9091`. **Sin `http://` delante**: con `http://`\n   no funciona.\n4. Marca la casilla **Use server reflection**. El servidor publica su propio\n   contrato, así que no hay que cargar el `.proto`.\n5. En **Method**, elige `saberpro.banco.v1.BancoPreguntas / ObtenerPregunta`.\n6. En la pestaña **Message**, pega esto con el identificador del paso 1:\n   ```json\n   { \"pregunta_id\": \"PEGA_AQUI_EL_ID\" }\n   ```\n7. **Invoke**. Debe devolver la pregunta completa con sus 4 opciones.\n8. **Save** → guárdala en la carpeta *3 · Evento + gRPC*, después de la 09, con\n   el nombre `09b · gRPC ObtenerPregunta`.\n\nPara mostrar también los errores de gRPC:\n\n| Message | Código esperado |\n|---|---|\n| `{ \"pregunta_id\": \"no-soy-un-uuid\" }` | `INVALID_ARGUMENT` |\n| `{ \"pregunta_id\": \"00000000-0000-4000-8000-000000000000\" }` | `NOT_FOUND` |\n\nEn proto3 un `false` y una cadena vacía no se serializan, así que las opciones\nincorrectas llegan sin el campo `es_correcta`. Es el comportamiento normal de\nprotobuf, no un error.\n\n## Si algo falla\n\n- **Una petición con espera agota los 20 s:** mira los logs con\n  `docker compose logs -f revision-service` y comprueba que los 5 contenedores\n  estén `healthy`.\n- **Todas las peticiones fallan:** casi siempre es el environment sin\n  seleccionar.\n- **Plan B:** `powershell -ExecutionPolicy Bypass -File .\\scripts\\prueba-e2e.ps1`\n  recorre lo mismo en un comando y muestra 24 comprobaciones.\n\nLa guía completa de la sustentación está en `docs/sustentacion.md`.\n",
   "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
  },
  "variable": [
@@ -295,10 +295,10 @@
         "{{urlBanco}}/api/v1/preguntas"
        ]
       },
-      "description": "**Qué hace**\n\nIntenta crear una pregunta con 3 distractores, una opción de dos letras y una opción del tipo «Todas las anteriores».\n\n**Qué debe ver el profesor**\n\nUn `400` con **tres** errores, cada uno citando la invariante que incumple: la 1 (exactamente 4 distractores y 1 correcta), la 2 (nada de «todas las anteriores») y la 3 (longitud mínima).\n\n**Qué decir**\n\nLas reglas no están en el controlador: las impone el agregado con el `ValidadorEstructural`. Y devuelve todos los errores a la vez.",
+      "description": "**Qué hace**\n\nIntenta crear una pregunta con 2 distractores, una opción de dos letras y una opción del tipo «Todas las anteriores».\n\n**Qué debe ver el profesor**\n\nUn `400` con **tres** errores, cada uno citando la invariante que incumple: la 1 (exactamente 3 distractores y 1 correcta), la 2 (nada de «todas las anteriores») y la 3 (longitud mínima).\n\n**Qué decir**\n\nLas reglas no están en el controlador: las impone el agregado con el `ValidadorEstructural`. Y devuelve todos los errores a la vez.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"No.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Todas las anteriores son correctas.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -320,7 +320,7 @@
          "const p = pm.response.json();",
          "pm.collectionVariables.set('demoPreguntaId', p.id);",
          "pm.test('Nace en BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
-         "pm.test('Tiene 5 opciones', () => pm.expect(p.opciones).to.have.lengthOf(5));",
+         "pm.test('Tiene 4 opciones', () => pm.expect(p.opciones).to.have.lengthOf(4));",
          "pm.test('Solo una es correcta', function () {",
          "    pm.expect(p.opciones.filter(o => o.esCorrecta)).to.have.lengthOf(1);",
          "});",
@@ -332,7 +332,10 @@
          "    competenciaNombre: p.competenciaNombre, competenciaCodigo: p.competenciaCodigo,",
          "    nivelDificultad: p.nivelDificultad,",
          "    opciones: p.opciones.map((o, i) => ({ n: i + 1, texto: o.texto, esCorrecta: o.esCorrecta })),",
-         "    esPublicada: p.estado === 'PUBLICADA',\n    esAprobada: p.estado === 'APROBADA',\n    esBorrador: p.estado === 'BORRADOR',\n",
+         "    esPublicada: p.estado === 'PUBLICADA',",
+         "    esAprobada: p.estado === 'APROBADA',",
+         "    esBorrador: p.estado === 'BORRADOR',",
+         "",
          "});"
         ]
        }
@@ -363,10 +366,10 @@
         "{{urlBanco}}/api/v1/preguntas"
        ]
       },
-      "description": "**Qué hace**\n\nCrea la pregunta que vamos a seguir durante toda la demostración. Guarda su identificador en la variable `demoPreguntaId`.\n\n**Qué debe ver el profesor**\n\nUn `201` y la pregunta en estado `BORRADOR`, con sus 5 opciones y una sola marcada como correcta.\n\n**Qué decir**\n\nAhora sí pasa las cuatro invariantes de contenido. Nace en `BORRADOR`: mientras está ahí, solo le importa a su autor.",
+      "description": "**Qué hace**\n\nCrea la pregunta que vamos a seguir durante toda la demostración. Guarda su identificador en la variable `demoPreguntaId`.\n\n**Qué debe ver el profesor**\n\nUn `201` y la pregunta en estado `BORRADOR`, con sus 4 opciones y una sola marcada como correcta.\n\n**Qué decir**\n\nAhora sí pasa las cuatro invariantes de contenido. Nace en `BORRADOR`: mientras está ahí, solo le importa a su autor. Para enviarla a revisión primero tiene que trabajarla (petición 07).",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -377,7 +380,7 @@
      "response": []
     },
     {
-     "name": "07 · Consultar la pregunta",
+     "name": "07 · El autor trabaja la pregunta → EN_CONSTRUCCION",
      "event": [
       {
        "listen": "test",
@@ -386,7 +389,7 @@
         "exec": [
          "pm.test('Responde 200', () => pm.response.to.have.status(200));",
          "const p = pm.response.json();",
-         "pm.test('Sigue en BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
+         "pm.test('Pasa a EN_CONSTRUCCION', () => pm.expect(p.estado).to.eql('EN_CONSTRUCCION'));",
          "pm.test('Es la pregunta de la demostracion', function () {",
          "    pm.expect(p.id).to.eql(pm.collectionVariables.get('demoPreguntaId'));",
          "});",
@@ -397,14 +400,17 @@
          "    competenciaNombre: p.competenciaNombre, competenciaCodigo: p.competenciaCodigo,",
          "    nivelDificultad: p.nivelDificultad,",
          "    opciones: p.opciones.map((o, i) => ({ n: i + 1, texto: o.texto, esCorrecta: o.esCorrecta })),",
-         "    esPublicada: p.estado === 'PUBLICADA',\n    esAprobada: p.estado === 'APROBADA',\n    esBorrador: p.estado === 'BORRADOR',\n",
+         "    esPublicada: p.estado === 'PUBLICADA',",
+         "    esAprobada: p.estado === 'APROBADA',",
+         "    esBorrador: p.estado === 'BORRADOR' || p.estado === 'EN_CONSTRUCCION',",
+         "",
          "});"
         ]
        }
       }
      ],
      "request": {
-      "method": "GET",
+      "method": "PUT",
       "header": [
        {
         "key": "X-Usuario-Id",
@@ -415,6 +421,11 @@
         "key": "X-Usuario-Rol",
         "value": "AUTOR",
         "type": "text"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json",
+        "type": "text"
        }
       ],
       "url": {
@@ -423,7 +434,16 @@
         "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}"
        ]
       },
-      "description": "**Qué hace**\n\nLee la pregunta que acabamos de crear, usando el identificador guardado.\n\n**Qué debe ver el profesor**\n\nLa pregunta completa con sus 5 opciones y su estado `BORRADOR`.\n\n**Qué decir**\n\nEl identificador se guardó solo en una variable; no hay que copiar nada a mano."
+      "description": "**Qué hace**\n\nEl autor edita la pregunta que acabamos de crear. Es la misma petición de edición que usará después para corregir una pregunta rechazada.\n\n**Qué debe ver el profesor**\n\nLa pregunta completa con sus 4 opciones y su estado `EN_CONSTRUCCION`.\n\n**Qué decir**\n\nUna pregunta recién creada no puede saltar a revisión: tiene que pasar por `EN_CONSTRUCCION`, que es el estado en que el autor la trabaja (invariante 6). Solo el autor puede editarla, y solo en `BORRADOR`, `EN_CONSTRUCCION` o `RECHAZADA` (invariante 7).",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\",\n  \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\",\n  \"opciones\": [\n    {\n      \"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\",\n      \"esCorrecta\": true\n    },\n    {\n      \"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\",\n      \"esCorrecta\": false\n    },\n    {\n      \"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\",\n  \"bibliografia\": [\n    \"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"\n  ],\n  \"competenciaCodigo\": \"ING-SOFT\",\n  \"competenciaNombre\": \"Diseño de Software y Arquitectura\",\n  \"tema\": \"Arquitectura de Software\",\n  \"subtema\": \"Microservicios\",\n  \"nivelDificultad\": \"MEDIO\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
      },
      "response": []
     }
@@ -472,7 +492,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/enviar-a-revision"
        ]
       },
-      "description": "**Qué hace**\n\nEl autor envía su pregunta al ciclo de revisión por pares. El banco valida el contenido otra vez, cambia el estado y publica `PreguntaEnviadaARevision`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. En la consola de RabbitMQ y en los logs se ve pasar el evento en ese instante.\n\n**Qué decir**\n\nEste es el momento en que los dos microservicios empiezan a hablar. El banco no llama a nadie: publica un evento y sigue con lo suyo."
+      "description": "**Qué hace**\n\nEl autor envía su pregunta, que está en `EN_CONSTRUCCION`, al ciclo de revisión por pares. El banco valida el contenido otra vez, cambia el estado y publica `PreguntaEnviadaARevision`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. En la consola de RabbitMQ y en los logs se ve pasar el evento en ese instante.\n\n**Qué decir**\n\nEste es el momento en que los dos microservicios empiezan a hablar. El banco no llama a nadie: publica un evento y sigue con lo suyo."
      },
      "response": []
     },
@@ -539,7 +559,7 @@
          "    pm.expect(r.revisorId).to.be.a('string').and.not.empty;",
          "});",
          "pm.test('El snapshot llego completo por gRPC', function () {",
-         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(5);",
+         "    pm.expect(r.snapshot.opciones).to.have.lengthOf(4);",
          "    pm.expect(r.snapshot.competenciaCodigo).to.eql('ING-SOFT');",
          "});",
          "console.log('demoRevisionId =', r.revisionId, '| revisor =', r.revisorId);",
@@ -575,7 +595,7 @@
         "{{urlRevision}}/api/v1/revisiones?preguntaId={{demoPreguntaId}}"
        ]
       },
-      "description": "**Qué hace**\n\nBusca en el `revision-service` la revisión de nuestra pregunta. Antes de enviar la petición, el script espera a que exista, sondeando cada segundo.\n\nGuarda el revisor asignado en `demoRevisorId` y la revisión en `demoRevisionId`.\n\n**Qué debe ver el profesor**\n\nUna revisión en estado `ASIGNADA`, con un revisor que eligió el `AsignadorRevisor`, y el **snapshot** con las 5 opciones de la pregunta. Ese snapshot llegó por **gRPC** desde el banco.\n\n**Qué decir**\n\nNadie creó esta revisión: el servicio consumió el evento, llamó al banco por gRPC para traerse el contenido y eligió revisor él solo."
+      "description": "**Qué hace**\n\nBusca en el `revision-service` la revisión de nuestra pregunta. Antes de enviar la petición, el script espera a que exista, sondeando cada segundo.\n\nGuarda el revisor asignado en `demoRevisorId` y la revisión en `demoRevisionId`.\n\n**Qué debe ver el profesor**\n\nUna revisión en estado `ASIGNADA`, con un revisor que eligió el `AsignadorRevisor`, y el **snapshot** con las 4 opciones de la pregunta. Ese snapshot llegó por **gRPC** desde el banco.\n\n**Qué decir**\n\nNadie creó esta revisión: el servicio consumió el evento, llamó al banco por gRPC para traerse el contenido y eligió revisor él solo."
      },
      "response": []
     },
@@ -720,10 +740,10 @@
         "{{urlRevision}}/api/v1/revisiones/{{demoRevisionId}}/formato"
        ]
       },
-      "description": "**Qué hace**\n\nEl revisor asignado puntúa los 5 criterios de la rúbrica, de 1 a 5.\n\n**Qué debe ver el profesor**\n\nLa revisión pasa a `EN_EVALUACION` y aparece el promedio calculado.\n\n**Qué decir**\n\nSolo el revisor asignado puede hacer esto, y lo comprueba el agregado. Los 5 criterios son la invariante 10.",
+      "description": "**Qué hace**\n\nEl revisor asignado puntúa los 6 criterios de la rúbrica, de 1 a 5.\n\n**Qué debe ver el profesor**\n\nLa revisión pasa a `EN_EVALUACION` y aparece el promedio calculado.\n\n**Qué decir**\n\nSolo el revisor asignado puede hacer esto, y lo comprueba el agregado. Los 6 criterios son la invariante 10. Uno de ellos, la coherencia gramatical, es la parte de la invariante 3 que no puede comprobar una máquina: la juzga el revisor.",
       "body": {
        "mode": "raw",
-       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 5,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
+       "raw": "{\n  \"puntajes\": {\n    \"CLARIDAD_CONTEXTO\": 5,\n    \"PERTINENCIA_COMPETENCIA\": 5,\n    \"PLAUSIBILIDAD_DISTRACTORES\": 4,\n    \"COHERENCIA_GRAMATICAL\": 4,\n    \"UNICIDAD_RESPUESTA_CORRECTA\": 5,\n    \"CALIDAD_JUSTIFICACION\": 4\n  }\n}",
        "options": {
         "raw": {
          "language": "json"
@@ -998,17 +1018,17 @@
         "exec": [
          "pm.test('Responde 200', () => pm.response.to.have.status(200));",
          "const h = pm.response.json();",
-         "pm.test('Hay 5 transiciones', () => pm.expect(h).to.have.lengthOf(5));",
+         "pm.test('Hay 6 transiciones', () => pm.expect(h).to.have.lengthOf(6));",
          "const estados = h.map(c => c.estadoNuevo).join(' -> ');",
          "pm.test('El recorrido es el esperado', function () {",
          "    pm.expect(estados).to.eql(",
-         "        'BORRADOR -> PENDIENTE_REVISION -> EN_REVISION -> APROBADA -> PUBLICADA');",
+         "        'BORRADOR -> EN_CONSTRUCCION -> PENDIENTE_REVISION -> EN_REVISION -> APROBADA -> PUBLICADA');",
          "});",
          "console.log(estados);",
          "",
          "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>Historial de la pregunta</h2><table><tr><th>#</th><th>De</th><th>A</th><th>Quién</th><th>Motivo</th></tr>{{#each filas}}<tr><td>{{n}}</td><td class=\\\"mut\\\">{{anterior}}</td><td><span class=\\\"pill {{clase}}\\\">{{nuevo}}</span></td><td class=\\\"mut\\\">{{usuario}}</td><td>{{motivo}}</td></tr>{{/each}}</table><p class=\\\"mut\\\">Trazabilidad completa: quién movió la pregunta, cuándo y por qué. Solo el administrador puede verlo.</p></div>\", {",
          "    filas: h.map(function (c, i) {",
-         "        const clases = { PUBLICADA: 'ok', APROBADA: 'ok', BORRADOR: 'warn' };",
+         "        const clases = { PUBLICADA: 'ok', APROBADA: 'ok', BORRADOR: 'warn', EN_CONSTRUCCION: 'warn' };",
          "        return { n: i + 1, anterior: c.estadoAnterior || '—',",
          "                 nuevo: c.estadoNuevo, motivo: c.motivo,",
          "                 usuario: (c.usuarioId || '').substring(0, 8) + '…',",
@@ -1039,7 +1059,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{demoPreguntaId}}/historial"
        ]
       },
-      "description": "**Qué hace**\n\nPide la trazabilidad de la pregunta. Solo el administrador puede consultarla, porque revela qué revisor tomó cada decisión.\n\n**Qué debe ver el profesor**\n\nLas 5 transiciones en orden: `BORRADOR`, `PENDIENTE_REVISION`, `EN_REVISION`, `APROBADA`, `PUBLICADA`, cada una con quién la provocó y por qué.\n\n**Qué decir**\n\nTodo lo que pasó queda registrado. Las transiciones del medio las provocaron eventos del otro microservicio, y ahí está el revisor que decidió."
+      "description": "**Qué hace**\n\nPide la trazabilidad de la pregunta. Solo el administrador puede consultarla, porque revela qué revisor tomó cada decisión.\n\n**Qué debe ver el profesor**\n\nLas 6 transiciones en orden: `BORRADOR`, `EN_CONSTRUCCION`, `PENDIENTE_REVISION`, `EN_REVISION`, `APROBADA`, `PUBLICADA`, cada una con quién la provocó y por qué.\n\n**Qué decir**\n\nTodo lo que pasó queda registrado. Las transiciones del medio las provocaron eventos del otro microservicio, y ahí está el revisor que decidió."
      },
      "response": []
     },
@@ -1113,8 +1133,8 @@
          "    ['eventId', 'eventType', 'eventVersion', 'occurredAt', 'source', 'data']",
          "        .forEach(k => pm.expect(ultimo).to.have.property(k));",
          "});",
-         "pm.test('Lleva la pregunta completa con sus 5 opciones', function () {",
-         "    pm.expect(ultimo.data.pregunta.opciones).to.have.lengthOf(5);",
+         "pm.test('Lleva la pregunta completa con sus 4 opciones', function () {",
+         "    pm.expect(ultimo.data.pregunta.opciones).to.have.lengthOf(4);",
          "});",
          "",
          "pm.visualizer.set(\"<style>\\n  .demo { font-family: -apple-system, Segoe UI, Roboto, sans-serif; font-size: 20px;\\n          color: #1f2933; padding: 8px 4px; }\\n  .demo h2 { font-size: 26px; margin: 0 0 14px 0; font-weight: 600; }\\n  .demo table { border-collapse: collapse; width: 100%; font-size: 19px; }\\n  .demo th { text-align: left; background: #eef2f7; padding: 10px 12px;\\n             border-bottom: 2px solid #cbd5e1; font-weight: 600; }\\n  .demo td { padding: 9px 12px; border-bottom: 1px solid #e5e9f0; vertical-align: top; }\\n  .demo .pill { display: inline-block; padding: 5px 14px; border-radius: 14px;\\n                font-weight: 600; font-size: 19px; }\\n  .demo .ok   { background: #dcfce7; color: #166534; }\\n  .demo .warn { background: #fef3c7; color: #92400e; }\\n  .demo .bad  { background: #fee2e2; color: #991b1b; }\\n  .demo .info { background: #e0f2fe; color: #075985; }\\n  .demo .mut  { color: #64748b; font-size: 17px; }\\n  .demo .big  { font-size: 30px; font-weight: 700; }\\n  .demo code  { background: #f1f5f9; padding: 2px 7px; border-radius: 5px; font-size: 18px; }\\n</style><div class=\\\"demo\\\"><h2>El evento esperando al tercer microservicio</h2><p><span class=\\\"pill info\\\">{{cuantos}} mensaje(s) en la cola</span></p><table><tr><th>Campo</th><th>Valor</th></tr><tr><th>eventType</th><td><code>{{eventType}}</code></td></tr><tr><th>eventId</th><td><code>{{eventId}}</code></td></tr><tr><th>occurredAt</th><td>{{occurredAt}}</td></tr><tr><th>source</th><td>{{source}}</td></tr><tr><th>Pregunta</th><td>{{preguntaDirecta}}</td></tr><tr><th>Opciones en el evento</th><td>{{cuantasOpciones}}</td></tr></table><p class=\\\"mut\\\">Se leyó con <code>ack_requeue_true</code>: el mensaje se mira y vuelve a la cola. Sigue ahí para cuando el servicio de simulacros exista.</p></div>\", {",
@@ -1271,9 +1291,10 @@
        "script": {
         "type": "text/javascript",
         "exec": [
-         "// Crea la pregunta de apoyo y guarda su id, para que la peticion",
-         "// principal solo tenga que enviarla a revision. Un solo clic.",
-         "const cuerpo = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}, {\"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Bases de datos por servicio\", \"nivelDificultad\": \"MEDIO\"};",
+         "// Crea la pregunta de apoyo, la trabaja (BORRADOR -> EN_CONSTRUCCION) y",
+         "// guarda su id, para que la peticion principal solo tenga que enviarla a",
+         "// revision. Un solo clic.",
+         "const cuerpo = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Bases de datos por servicio\", \"nivelDificultad\": \"MEDIO\"};",
          "pm.sendRequest({",
          "    url: pm.variables.get('urlBanco') + '/api/v1/preguntas',",
          "    method: 'POST',",
@@ -1286,6 +1307,15 @@
          "        const p = respuesta.json();",
          "        pm.collectionVariables.set('demoOtraPreguntaId', p.id);",
          "        console.log('Pregunta de apoyo creada:', p.id);",
+         "        // Solo se envia a revision desde EN_CONSTRUCCION, y ahi se llega editandola.",
+         "        pm.sendRequest({",
+         "            url: pm.variables.get('urlBanco') + '/api/v1/preguntas/' + p.id,",
+         "            method: 'PUT',",
+         "            header: { 'Content-Type': 'application/json',",
+         "                      'X-Usuario-Id': pm.variables.get('autorId'),",
+         "                      'X-Usuario-Rol': 'AUTOR' },",
+         "            body: { mode: 'raw', raw: JSON.stringify(cuerpo) }",
+         "        }, function () { console.log('Pregunta de apoyo en EN_CONSTRUCCION:', p.id); });",
          "    } else {",
          "        console.error('No se pudo crear la pregunta de apoyo.');",
          "    }",
@@ -1356,7 +1386,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{demoOtraPreguntaId}}/enviar-a-revision"
        ]
       },
-      "description": "**Qué hace**\n\nPetición de apoyo para la siguiente. El script crea una pregunta nueva antes de enviar, y aquí la manda a revisión; después espera a que exista su revisión y guarda su identificador en `demoOtraRevisionId`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. Es material para probar la invariante 10 sin tocar la pregunta principal.\n\n**Qué decir**\n\nNecesitamos una revisión sin formato diligenciado para el caso siguiente."
+      "description": "**Qué hace**\n\nPetición de apoyo para la siguiente. El script crea una pregunta nueva y la trabaja (`EN_CONSTRUCCION`) antes de enviar, y aquí la manda a revisión; después espera a que exista su revisión y guarda su identificador en `demoOtraRevisionId`.\n\n**Qué debe ver el profesor**\n\nEstado `PENDIENTE_REVISION`. Es material para probar la invariante 10 sin tocar la pregunta principal.\n\n**Qué decir**\n\nNecesitamos una revisión sin formato diligenciado para el caso siguiente."
      },
      "response": []
     },
@@ -1379,7 +1409,7 @@
          "    titulo: 'Invariante 10: no se decide con el formato incompleto',",
          "    status: e.status, title: e.title, detail: e.detail,",
          "    errores: (e.errores || []).join(' · '),",
-         "    nota: 'Hacen falta los 5 criterios y un promedio de al menos 3.0 para aprobar.'",
+         "    nota: 'Hacen falta los 6 criterios y un promedio de al menos 3.0 para aprobar.'",
          "});"
         ]
        }
@@ -1448,8 +1478,8 @@
          "                 'X-Usuario-Rol': 'AUTOR' };",
          "const hAdmin = { 'X-Usuario-Id': pm.variables.get('administradorId'),",
          "                 'X-Usuario-Rol': 'ADMINISTRADOR' };",
-         "const cuerpoPregunta = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}, {\"texto\": \"Porque compartir la base reduce el número de contratos de integración que hay que documentar.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Patrones de integración\", \"nivelDificultad\": \"MEDIO\"};",
-         "const formato = {\"puntajes\": {\"CLARIDAD_CONTEXTO\": 5, \"PERTINENCIA_COMPETENCIA\": 5, \"PLAUSIBILIDAD_DISTRACTORES\": 4, \"UNICIDAD_RESPUESTA_CORRECTA\": 5, \"CALIDAD_JUSTIFICACION\": 4}};",
+         "const cuerpoPregunta = {\"contexto\": \"La Universidad del Cauca está migrando su plataforma académica monolítica hacia microservicios. El equipo separa Matrículas y Notificaciones, y el arquitecto exige que cada uno tenga su propia base de datos en lugar de compartir el esquema que ya existe.\", \"preguntaDirecta\": \"¿Cuál es la razón principal por la que el arquitecto rechaza que los dos microservicios compartan la base de datos?\", \"opciones\": [{\"texto\": \"Porque cada servicio es dueño exclusivo de sus datos, y así se puede desplegar y migrar su esquema sin coordinar con los demás.\", \"esCorrecta\": true}, {\"texto\": \"Porque una base de datos compartida siempre resulta más costosa de operar que varias bases pequeñas.\", \"esCorrecta\": false}, {\"texto\": \"Porque PostgreSQL no admite más de una aplicación conectada al mismo esquema de forma simultánea.\", \"esCorrecta\": false}, {\"texto\": \"Porque el teorema CAP prohíbe que dos servicios compartan un motor relacional en la misma red.\", \"esCorrecta\": false}], \"justificacion\": \"La independencia de despliegue depende de que nadie más escriba en tus tablas: es el patrón database per service. Si dos servicios comparten el esquema, cualquier cambio obliga a coordinar y desplegar los dos a la vez.\", \"bibliografia\": [\"Newman, S. (2021). Building Microservices (2nd ed.). O'Reilly.\"], \"competenciaCodigo\": \"ING-SOFT\", \"competenciaNombre\": \"Diseño de Software y Arquitectura\", \"tema\": \"Arquitectura de Software\", \"subtema\": \"Patrones de integración\", \"nivelDificultad\": \"MEDIO\"};",
+         "const formato = {\"puntajes\": {\"CLARIDAD_CONTEXTO\": 5, \"PERTINENCIA_COMPETENCIA\": 5, \"PLAUSIBILIDAD_DISTRACTORES\": 4, \"COHERENCIA_GRAMATICAL\": 4, \"UNICIDAD_RESPUESTA_CORRECTA\": 5, \"CALIDAD_JUSTIFICACION\": 4}};",
          "const OBSERVACIONES = [",
          "    'El distractor sobre el teorema CAP es demasiado facil de descartar para un estudiante de ultimo semestre.',",
          "    'Falta precisar en el contexto cuantos servicios comparten hoy el esquema.'",
@@ -1461,7 +1491,10 @@
          "    }, function (e, r) {",
          "        const p = r.json();",
          "        pm.collectionVariables.set('demoRechazoPreguntaId', p.id);",
-         "        siguiente(p.id);",
+         "        // Solo se envia a revision desde EN_CONSTRUCCION, y ahi se llega editandola.",
+         "        pm.sendRequest({ url: urlBanco + '/api/v1/preguntas/' + p.id, method: 'PUT',",
+         "            header: hAutor, body: { mode: 'raw', raw: JSON.stringify(cuerpoPregunta) }",
+         "        }, function () { siguiente(p.id); });",
          "    });",
          "}",
          "",
@@ -1580,7 +1613,7 @@
      "response": []
     },
     {
-     "name": "23 · La pregunta vuelve a BORRADOR con las observaciones",
+     "name": "23 · La pregunta queda RECHAZADA con las observaciones",
      "event": [
       {
        "listen": "prerequest",
@@ -1607,7 +1640,7 @@
          "        if (!error && respuesta && respuesta.code === 200) {",
          "            try {",
          "                const cuerpo = respuesta.json();",
-         "                listo = cuerpo.estado === 'BORRADOR' && !!cuerpo.observacionesUltimaRevision;",
+         "                listo = cuerpo.estado === 'RECHAZADA' && !!cuerpo.observacionesUltimaRevision;",
          "            } catch (e) { listo = false; }",
          "        }",
          "        const transcurrido = Date.now() - inicio;",
@@ -1633,7 +1666,7 @@
         "exec": [
          "pm.test('Responde 200', () => pm.response.to.have.status(200));",
          "const p = pm.response.json();",
-         "pm.test('Volvio a BORRADOR', () => pm.expect(p.estado).to.eql('BORRADOR'));",
+         "pm.test('Queda en RECHAZADA', () => pm.expect(p.estado).to.eql('RECHAZADA'));",
          "pm.test('El autor ve las observaciones', function () {",
          "    pm.expect(p.observacionesUltimaRevision).to.be.a('string').and.not.empty;",
          "});",
@@ -1665,7 +1698,7 @@
         "{{urlBanco}}/api/v1/preguntas/{{demoRechazoPreguntaId}}"
        ]
       },
-      "description": "**Qué hace**\n\nLee la segunda pregunta en el banco. El script espera a que el banco haya consumido el evento de rechazo.\n\n**Qué debe ver el profesor**\n\nEstado `BORRADOR` otra vez, y las observaciones del revisor en `observacionesUltimaRevision`, visibles para el autor.\n\n**Qué decir**\n\nNo hay estado RECHAZADA: la pregunta vuelve al autor con lo que tiene que corregir, y desde ahí puede reenviarla."
+      "description": "**Qué hace**\n\nLee la segunda pregunta en el banco. El script espera a que el banco haya consumido el evento de rechazo.\n\n**Qué debe ver el profesor**\n\nEstado `RECHAZADA`, y las observaciones del revisor en `observacionesUltimaRevision`, visibles para el autor.\n\n**Qué decir**\n\nLa pregunta no se descarta: queda en `RECHAZADA` con lo que el autor tiene que corregir. Al editarla se reabre (pasa a `EN_CONSTRUCCION`) y desde ahí puede reenviarla."
      },
      "response": []
     }

@@ -147,7 +147,31 @@ class TestInvariante10:
         assert "formato de evaluación incompleto" in str(error.value)
         assert "Invariante 10" in str(error.value)
         # Dice exactamente qué falta, no solo que falta algo.
-        assert len(error.value.errores) == 2
+        assert len(error.value.errores) == 3
+
+    def test_no_se_puede_aprobar_sin_juzgar_la_coherencia_gramatical(self):
+        """La parte gramatical de la invariante 3 la juzga el revisor: sin ese
+        criterio el formato no está completo y no hay decisión posible."""
+        revision = datos.revision()
+        revision.guardar_formato(
+            datos.REVISOR,
+            datos.formato_con(
+                CLARIDAD_CONTEXTO=5,
+                PERTINENCIA_COMPETENCIA=5,
+                PLAUSIBILIDAD_DISTRACTORES=5,
+                UNICIDAD_RESPUESTA_CORRECTA=5,
+                CALIDAD_JUSTIFICACION=5,
+            ),
+            datos.AHORA,
+        )
+
+        with pytest.raises(ReglaDeNegocioViolada) as error:
+            revision.decidir(datos.REVISOR, Decision.APROBAR, datos.AHORA)
+
+        assert "Invariante 10" in str(error.value)
+        assert error.value.errores == [
+            "Falta puntuar el criterio COHERENCIA_GRAMATICAL."
+        ]
 
     def test_no_se_puede_rechazar_con_formato_incompleto(self):
         revision = datos.revision()
@@ -163,30 +187,31 @@ class TestInvariante10:
 
         with pytest.raises(ReglaDeNegocioViolada) as error:
             revision.decidir(datos.REVISOR, Decision.APROBAR, datos.AHORA)
-        assert "faltan 5 de 5 criterios" in str(error.value)
+        assert "faltan 6 de 6 criterios" in str(error.value)
 
     def test_no_se_puede_aprobar_con_promedio_bajo_el_minimo(self):
         revision = datos.revision()
-        # Promedio 2.8, por debajo del 3.0 exigido.
+        # Promedio 2.83 (17 / 6), por debajo del 3.0 exigido.
         revision.guardar_formato(
             datos.REVISOR,
             datos.formato_con(
                 CLARIDAD_CONTEXTO=3,
                 PERTINENCIA_COMPETENCIA=3,
                 PLAUSIBILIDAD_DISTRACTORES=2,
+                COHERENCIA_GRAMATICAL=3,
                 UNICIDAD_RESPUESTA_CORRECTA=3,
                 CALIDAD_JUSTIFICACION=3,
             ),
             datos.AHORA,
         )
-        assert revision.promedio == 2.8
+        assert revision.promedio == 2.83
 
         with pytest.raises(ReglaDeNegocioViolada) as error:
             revision.decidir(
                 datos.REVISOR, Decision.APROBAR, datos.AHORA, promedio_minimo=3.0
             )
 
-        assert "el promedio del formato es 2.8" in str(error.value)
+        assert "el promedio del formato es 2.83" in str(error.value)
         assert "Invariante 10" in str(error.value)
         assert revision.estado is EstadoRevision.EN_EVALUACION, (
             "si no se pudo aprobar, la revisión se queda donde estaba"
@@ -322,9 +347,9 @@ class TestFormatoEvaluacion:
 
         assert formato.esta_completo() is False
         assert formato.promedio() == 0.0
-        assert len(formato.criterios_faltantes()) == 5
+        assert len(formato.criterios_faltantes()) == 6
 
-    def test_el_formato_con_los_cinco_criterios_esta_completo(self):
+    def test_el_formato_con_los_seis_criterios_esta_completo(self):
         formato = datos.formato_completo()
 
         assert formato.esta_completo() is True
@@ -351,11 +376,13 @@ class TestFormatoEvaluacion:
             CLARIDAD_CONTEXTO=5,
             PERTINENCIA_COMPETENCIA=4,
             PLAUSIBILIDAD_DISTRACTORES=4,
+            COHERENCIA_GRAMATICAL=4,
             UNICIDAD_RESPUESTA_CORRECTA=5,
             CALIDAD_JUSTIFICACION=3,
         )
 
-        assert formato.promedio() == 4.2
+        # 25 / 6 = 4.1666...
+        assert formato.promedio() == 4.17
 
     def test_es_inmutable(self):
         formato = datos.formato_completo()
@@ -369,4 +396,4 @@ class TestFormatoEvaluacion:
         assert len(revision.formato.puntajes) == 3
 
         revision.guardar_formato(datos.REVISOR, datos.formato_completo(), datos.AHORA)
-        assert len(revision.formato.puntajes) == 5
+        assert len(revision.formato.puntajes) == 6

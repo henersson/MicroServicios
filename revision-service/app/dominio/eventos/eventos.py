@@ -138,7 +138,7 @@ class PreguntaAprobadaTecnicamente(EventoDominio):
 class PreguntaRechazadaPorPares(EventoDominio):
     """El revisor rechazó la pregunta.
 
-    Lo consume el banco para devolver la pregunta a ``BORRADOR`` con las
+    Lo consume el banco para pasar la pregunta a ``RECHAZADA`` con las
     observaciones visibles para el autor (ADR 2). Por eso el evento lleva las
     observaciones completas y no solo un identificador: el banco tiene que poder
     mostrárselas al autor sin llamar de vuelta a este servicio.

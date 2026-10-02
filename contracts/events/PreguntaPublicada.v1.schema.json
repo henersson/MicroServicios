@@ -88,8 +88,8 @@
             },
             "opciones": {
               "type": "array",
-              "minItems": 5,
-              "maxItems": 5,
+              "minItems": 4,
+              "maxItems": 4,
               "items": {
                 "type": "object",
                 "description": "Value Object Opcion del dominio.",
@@ -109,7 +109,7 @@
                   }
                 }
               },
-              "description": "Exactamente 5 opciones: 4 distractores y 1 correcta (invariante 1)."
+              "description": "Exactamente 4 opciones: 3 distractores y 1 correcta (invariante 1)."
             },
             "justificacion": {
               "type": "string",

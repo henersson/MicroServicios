@@ -35,35 +35,37 @@ class ValidadorEstructuralTest {
     }
 
     @Nested
-    @DisplayName("Invariante 1 — exactamente 4 distractores y 1 correcta")
+    @DisplayName("Invariante 1 — exactamente 3 distractores y 1 correcta")
     class Invariante1 {
 
         @Test
-        @DisplayName("rechaza una pregunta con solo 3 distractores (4 opciones en total)")
-        void rechazaTresDistractores() {
-            List<Opcion> cuatro = DatosDePrueba.opcionesValidas().subList(0, 4);
+        @DisplayName("rechaza una pregunta con solo 2 distractores (3 opciones en total)")
+        void rechazaDosDistractores() {
+            List<Opcion> tres = DatosDePrueba.opcionesValidas().subList(0, 3);
 
-            var resultado = validador.validar(DatosDePrueba.contenidoCon(cuatro));
+            var resultado = validador.validar(DatosDePrueba.contenidoCon(tres));
 
             assertThat(resultado.esValido()).isFalse();
             assertThat(resultado.errores())
                     .anySatisfy(error -> assertThat(error)
-                            .contains("exactamente 5 opciones")
-                            .contains("tiene 4")
+                            .contains("exactamente 4 opciones")
+                            .contains("tiene 3")
                             .contains("Invariante 1"));
         }
 
         @Test
-        @DisplayName("rechaza una pregunta con 6 opciones")
-        void rechazaSeisOpciones() {
-            List<Opcion> seis = DatosDePrueba.unir(
+        @DisplayName("rechaza una pregunta con 5 opciones (4 distractores)")
+        void rechazaCincoOpciones() {
+            List<Opcion> cinco = DatosDePrueba.unir(
                     DatosDePrueba.opcionesValidas(),
-                    DatosDePrueba.opciones("Una sexta opción que sobra por completo.", false));
+                    DatosDePrueba.opciones("Una quinta opción que sobra por completo.", false));
 
-            var resultado = validador.validar(DatosDePrueba.contenidoCon(seis));
+            var resultado = validador.validar(DatosDePrueba.contenidoCon(cinco));
 
             assertThat(resultado.errores())
-                    .anySatisfy(error -> assertThat(error).contains("tiene 6"));
+                    .anySatisfy(error -> assertThat(error)
+                            .contains("exactamente 4 opciones")
+                            .contains("tiene 5"));
         }
 
         @Test
@@ -73,8 +75,7 @@ class ValidadorEstructuralTest {
                     "El acoplamiento de datos impide el despliegue independiente.", true,
                     "Cada servicio debe ser dueño exclusivo de su esquema de datos.", true,
                     "El teorema CAP prohíbe compartir un motor relacional.", false,
-                    "Una base compartida siempre es más costosa de operar.", false,
-                    "Los microservicios solo se comunican de forma asíncrona.", false);
+                    "Una base compartida siempre es más costosa de operar.", false);
 
             var resultado = validador.validar(DatosDePrueba.contenidoCon(conDosCorrectas));
 
@@ -92,8 +93,7 @@ class ValidadorEstructuralTest {
                     "PostgreSQL no admite conexiones concurrentes de varios servicios.", false,
                     "El teorema CAP prohíbe compartir un motor relacional.", false,
                     "Una base compartida siempre es más costosa de operar.", false,
-                    "Los microservicios solo se comunican de forma asíncrona.", false,
-                    "Compartir esquema obliga a usar siempre el protocolo REST.", false);
+                    "Los microservicios solo se comunican de forma asíncrona.", false);
 
             var resultado = validador.validar(DatosDePrueba.contenidoCon(sinCorrecta));
 
@@ -128,7 +128,7 @@ class ValidadorEstructuralTest {
         })
         void rechazaFormulasProhibidas(String textoProhibido) {
             var contenido = DatosDePrueba.contenidoCon(
-                    DatosDePrueba.opcionesConTextoEnPosicion(4, textoProhibido));
+                    DatosDePrueba.opcionesConTextoEnPosicion(3, textoProhibido));
 
             var resultado = validador.validar(contenido);
 
@@ -278,12 +278,11 @@ class ValidadorEstructuralTest {
     @Test
     @DisplayName("devuelve todos los errores juntos, no solo el primero")
     void acumulaTodosLosErrores() {
-        // Tres problemas a la vez: sin contexto, 4 opciones y una demasiado corta.
+        // Tres problemas a la vez: sin contexto, 3 opciones y una demasiado corta.
         List<Opcion> rotas = DatosDePrueba.opciones(
                 "El acoplamiento de datos impide el despliegue independiente.", true,
                 "No", false,
-                "El teorema CAP prohíbe compartir un motor relacional.", false,
-                "Una base compartida siempre es más costosa de operar.", false);
+                "El teorema CAP prohíbe compartir un motor relacional.", false);
 
         ContenidoPregunta base = DatosDePrueba.contenidoCon(rotas);
         ContenidoPregunta contenido = new ContenidoPregunta("", base.preguntaDirecta(),

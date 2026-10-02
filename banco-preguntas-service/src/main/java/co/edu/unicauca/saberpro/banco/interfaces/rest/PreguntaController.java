@@ -90,7 +90,7 @@ public class PreguntaController {
                     Crea una pregunta nueva en estado **BORRADOR**.
 
                     El contenido se valida contra las invariantes 1 a 4 del banco:
-                    exactamente 5 opciones con una sola correcta, sin fórmulas del tipo
+                    exactamente 4 opciones con una sola correcta, sin fórmulas del tipo
                     "todas las anteriores", opciones con longitud mínima y sin repetir, y
                     contexto y pregunta directa obligatorios.
 
@@ -131,10 +131,14 @@ public class PreguntaController {
             description = """
                     Reemplaza el contenido de una pregunta.
 
-                    Solo el **autor** puede editarla y solo mientras esté en **BORRADOR**
-                    (invariante 7). Es el camino para corregir una pregunta que la revisión
-                    por pares devolvió: el rechazo la dejó en BORRADOR con las observaciones
-                    en `observacionesUltimaRevision`.
+                    Solo el **autor** puede editarla, y solo mientras esté en **BORRADOR**,
+                    **EN_CONSTRUCCION** o **RECHAZADA** (invariante 7). Editarla en BORRADOR o
+                    en RECHAZADA la pasa a **EN_CONSTRUCCION**, que es el único estado desde el
+                    que se envía a revisión.
+
+                    Es también el camino para corregir una pregunta que la revisión por pares
+                    rechazó: queda en RECHAZADA con las observaciones en
+                    `observacionesUltimaRevision`, y al editarla se reabre.
 
                     Rol requerido: `AUTOR` (y ser el autor de esta pregunta).""")
     @ApiResponses({
@@ -146,7 +150,7 @@ public class PreguntaController {
             @ApiResponse(responseCode = "404", description = "La pregunta no existe",
                     content = @Content(schema = @Schema(implementation = RespuestaError.class))),
             @ApiResponse(responseCode = "409",
-                    description = "La pregunta no está en BORRADOR",
+                    description = "La pregunta no está en un estado editable",
                     content = @Content(schema = @Schema(implementation = RespuestaError.class)))
     })
     @PutMapping("/{id}")
@@ -201,8 +205,9 @@ public class PreguntaController {
             @RequestHeader(name = ContextoUsuario.CABECERA_ID, required = false) String usuarioId,
             @RequestHeader(name = ContextoUsuario.CABECERA_ROL, required = false) String rol,
             @Parameter(description = "Estado del ciclo de vida",
-                    schema = @Schema(allowableValues = {"BORRADOR", "PENDIENTE_REVISION",
-                            "EN_REVISION", "APROBADA", "PUBLICADA", "ARCHIVADA"}))
+                    schema = @Schema(allowableValues = {"BORRADOR", "EN_CONSTRUCCION",
+                            "PENDIENTE_REVISION", "EN_REVISION", "APROBADA", "RECHAZADA",
+                            "PUBLICADA", "ARCHIVADA"}))
             @RequestParam(required = false) String estado,
             @Parameter(description = "Código de la competencia", example = "ING-SOFT")
             @RequestParam(required = false) String competencia,
@@ -259,9 +264,12 @@ public class PreguntaController {
 
     @Operation(summary = "Enviar una pregunta a revisión",
             description = """
-                    Envía la pregunta al ciclo de revisión por pares: pasa de **BORRADOR** a
-                    **PENDIENTE_REVISION** y se publica el evento `PreguntaEnviadaARevision`
-                    en RabbitMQ, que consumirá el `revision-service`.
+                    Envía la pregunta al ciclo de revisión por pares: pasa de
+                    **EN_CONSTRUCCION** a **PENDIENTE_REVISION** y se publica el evento
+                    `PreguntaEnviadaARevision` en RabbitMQ, que consumirá el `revision-service`.
+
+                    Una pregunta en BORRADOR o en RECHAZADA no se puede enviar: primero hay
+                    que editarla, lo que la pasa a EN_CONSTRUCCION (invariante 6).
 
                     El contenido se revalida antes de salir: es la última puerta antes de que
                     la pregunta deje este contexto.
@@ -275,7 +283,8 @@ public class PreguntaController {
                     content = @Content(schema = @Schema(implementation = RespuestaError.class))),
             @ApiResponse(responseCode = "404", description = "La pregunta no existe",
                     content = @Content(schema = @Schema(implementation = RespuestaError.class))),
-            @ApiResponse(responseCode = "409", description = "La pregunta no está en BORRADOR",
+            @ApiResponse(responseCode = "409",
+                    description = "La pregunta no está en EN_CONSTRUCCION",
                     content = @Content(schema = @Schema(implementation = RespuestaError.class)))
     })
     @PostMapping("/{id}/enviar-a-revision")
@@ -295,7 +304,7 @@ public class PreguntaController {
                     Publica una pregunta **APROBADA**, que queda disponible para los simulacros.
 
                     Antes de publicar se revalida el contenido completo: una pregunta PUBLICADA
-                    nunca puede quedar sin sus 5 opciones (invariante 5), porque llegaría así a
+                    nunca puede quedar sin sus 4 opciones (invariante 5), porque llegaría así a
                     un estudiante en una prueba real.
 
                     Emite el evento `PreguntaPublicada` con la pregunta completa.
@@ -331,8 +340,8 @@ public class PreguntaController {
                     pregunta ya usada en un simulacro siga siendo consultable. Por eso no existe
                     ninguna operación `DELETE` en esta API.
 
-                    Se puede archivar desde BORRADOR, APROBADA o PUBLICADA. Emite el evento
-                    `PreguntaArchivada`.
+                    Se puede archivar desde BORRADOR, EN_CONSTRUCCION, RECHAZADA, APROBADA o
+                    PUBLICADA. Emite el evento `PreguntaArchivada`.
 
                     Rol requerido: `ADMINISTRADOR`.""")
     @ApiResponses({
@@ -384,7 +393,7 @@ public class PreguntaController {
                     + "las reglas del banco.") String detail,
             @Schema(example = "/api/v1/preguntas") String instance,
             @Schema(description = "Una entrada por cada regla incumplida.",
-                    example = "[\"La pregunta debe tener exactamente 5 opciones y tiene 4. "
+                    example = "[\"La pregunta debe tener exactamente 4 opciones y tiene 3. "
                             + "(Invariante 1)\"]")
             List<String> errores) {
     }

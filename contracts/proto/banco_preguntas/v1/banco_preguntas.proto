@@ -73,7 +73,7 @@ message ListarPreguntasPublicadasRequest {
   int32 limite = 4;
 }
 
-// Una de las 5 opciones de respuesta de una pregunta.
+// Una de las 4 opciones de respuesta de una pregunta.
 // Corresponde al Value Object `Opcion` del dominio.
 message OpcionMensaje {
   // Texto de la opción tal como lo ve el estudiante.
@@ -104,7 +104,7 @@ message PreguntaMensaje {
   // El interrogante concreto que se le plantea al estudiante (invariante 4).
   string pregunta_directa = 4;
 
-  // Exactamente 5 opciones: 4 distractores y 1 correcta (invariante 1).
+  // Exactamente 4 opciones: 3 distractores y 1 correcta (invariante 1).
   repeated OpcionMensaje opciones = 5;
 
   // Explicación de por qué la opción correcta lo es.
@@ -129,8 +129,8 @@ message PreguntaMensaje {
   // Nivel de dificultad: "BAJO", "MEDIO" o "ALTO".
   string nivel_dificultad = 12;
 
-  // Estado del ciclo de vida: "BORRADOR", "PENDIENTE_REVISION", "EN_REVISION",
-  // "APROBADA", "PUBLICADA" o "ARCHIVADA".
+  // Estado del ciclo de vida: "BORRADOR", "EN_CONSTRUCCION", "PENDIENTE_REVISION",
+  // "EN_REVISION", "APROBADA", "RECHAZADA", "PUBLICADA" o "ARCHIVADA".
   string estado = 13;
 }
 

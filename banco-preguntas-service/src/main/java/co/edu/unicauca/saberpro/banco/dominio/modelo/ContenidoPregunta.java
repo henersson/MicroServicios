@@ -20,7 +20,7 @@ import java.util.List;
  *
  * @param contexto        situación a analizar (invariante 4)
  * @param preguntaDirecta el interrogante planteado (invariante 4)
- * @param opciones        exactamente 5: 4 distractores y 1 correcta (invariante 1)
+ * @param opciones        exactamente 4: 3 distractores y 1 correcta (invariante 1)
  * @param justificacion   por qué la correcta lo es
  * @param bibliografia    referencias de respaldo; puede ir vacía
  * @param competencia     competencia Saber Pro evaluada

@@ -180,7 +180,7 @@ class RespuestaRevision(BaseModel):
 class PeticionFormato(BaseModel):
     """Formato de evaluación que envía el revisor.
 
-    Los 5 criterios se puntúan de 1 a 5. Se puede enviar incompleto: el revisor
+    Los 6 criterios se puntúan de 1 a 5. Se puede enviar incompleto: el revisor
     guarda lo que lleva y vuelve luego. Lo que no se puede es *decidir* con el
     formato incompleto (invariante 10).
     """
@@ -192,6 +192,7 @@ class PeticionFormato(BaseModel):
                     "CLARIDAD_CONTEXTO": 5,
                     "PERTINENCIA_COMPETENCIA": 4,
                     "PLAUSIBILIDAD_DISTRACTORES": 4,
+                    "COHERENCIA_GRAMATICAL": 4,
                     "UNICIDAD_RESPUESTA_CORRECTA": 5,
                     "CALIDAD_JUSTIFICACION": 4,
                 }
@@ -255,7 +256,7 @@ class RespuestaError(BaseModel):
                 "status": 400,
                 "detail": (
                     "No se puede decidir con el formato de evaluación incompleto: "
-                    "faltan 2 de 5 criterios por puntuar. (Invariante 10)"
+                    "faltan 2 de 6 criterios por puntuar. (Invariante 10)"
                 ),
                 "instance": "/api/v1/revisiones/{id}/decision",
                 "errores": ["Falta puntuar el criterio CALIDAD_JUSTIFICACION."],

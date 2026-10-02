@@ -3,7 +3,7 @@ package co.edu.unicauca.saberpro.banco.dominio.modelo;
 import co.edu.unicauca.saberpro.banco.dominio.excepciones.ReglaDeNegocioViolada;
 
 /**
- * Value Object del BC Banco de Preguntas: una de las cinco opciones de
+ * Value Object del BC Banco de Preguntas: una de las cuatro opciones de
  * respuesta de una pregunta de selección múltiple.
  *
  * <p>Es inmutable y se compara por valor, como todo Value Object: dos opciones

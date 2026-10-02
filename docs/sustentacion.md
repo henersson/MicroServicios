@@ -60,8 +60,8 @@ El orden exacto de las peticiones y qué pasos se saltan si falta tiempo están 
 | `revision.py` | El `__post_init__` que impide construir una `Revision` sin revisor | «La invariante 9 se garantiza en el constructor: sin revisor, el objeto no llega a existir» |
 | Las 4 carpetas de cada servicio | La misma estructura en los dos, en dos lenguajes distintos | «Las dependencias apuntan al dominio. Y no es una promesa: hay 3 reglas de ArchUnit y 2 contratos de import-linter que hacen fallar el build» |
 | Petición **05** | Un `400` con tres errores, cada uno citando su invariante | «El dominio rechaza la pregunta y devuelve los tres problemas juntos, para que el autor corrija en una pasada» |
-| Petición **06** | `201` y estado `BORRADOR`, 5 opciones, una correcta | «Ahora sí cumple. Nace en `BORRADOR`: mientras está ahí, solo le importa a su autor» |
-| Petición **07** | La pregunta completa | «El identificador se guardó solo en una variable; no copiamos nada a mano» |
+| Petición **06** | `201` y estado `BORRADOR`, 4 opciones, una correcta | «Ahora sí cumple. Nace en `BORRADOR`: mientras está ahí, solo le importa a su autor» |
+| Petición **07** | Estado `EN_CONSTRUCCION` | «Una pregunta recién creada no puede saltar a revisión: primero el autor la trabaja. Es la invariante 6, y son los 8 estados del Taller 1» |
 
 ### Parte 2 — Microservicios, REST y gRPC (C2, C3)
 
@@ -82,7 +82,7 @@ Con la terminal de logs y la consola de RabbitMQ a la vista.
 |---|---|---|
 | Petición **03** | La tabla de colas, con consumidores en dos de ellas y ninguno en la del tercer servicio | «Un exchange, 3 colas y 3 colas de mensajes fallidos» |
 | Petición **08** y los logs | El banco publicando `PreguntaEnviadaARevision` y el servicio de revisión recibiéndolo | «Aquí empieza la coordinación. El banco no llama a nadie: publica un evento y sigue» |
-| Petición **09** | Una revisión en `ASIGNADA`, con revisor y con las 5 opciones del snapshot | «Nadie creó esta revisión. El servicio consumió el evento, llamó al banco por gRPC y eligió revisor él solo» |
+| Petición **09** | Una revisión en `ASIGNADA`, con revisor y con las 4 opciones del snapshot | «Nadie creó esta revisión. El servicio consumió el evento, llamó al banco por gRPC y eligió revisor él solo» |
 | Petición **10** | Estado `EN_REVISION` | «El banco cambió solo, al consumir `RevisorAsignado`. Entre los dos estados ha habido un evento, una llamada gRPC y otro evento» |
 | Peticiones **11** y **12** | `EN_EVALUACION`, el promedio y la observación con su revisor | «Solo el revisor asignado puede hacer esto, y lo comprueba el agregado» |
 | Peticiones **13** y **14** | La revisión `APROBADA` y, sin tocar nada más, la pregunta `APROBADA` en el otro servicio | «La decisión se tomó en un microservicio y el otro la aplicó al recibir el evento» |
@@ -106,7 +106,7 @@ cambiemos una línea de los dos que ya están.»
 
 ### Si sobra tiempo
 
-- **Carpeta 7 · Extra: el camino de rechazo (opcional)**: la pregunta vuelve a `BORRADOR` con las
+- **Carpeta 7 · Extra: el camino de rechazo (opcional)**: la pregunta queda en `RECHAZADA` con las
   observaciones del revisor.
 - **Carpeta 8 · Extra: un evento que falla no se pierde (opcional)**: se inyecta un evento
   imposible y se ve aparecer en la DLQ. La última petición vacía la DLQ y deja el
@@ -120,11 +120,15 @@ cambiemos una línea de los dos que ya están.»
 | ¿Por qué revisión guarda una copia de la pregunta? | Para que el revisor juzgue algo estable: si el autor la edita después, no cambia lo que ya evaluó. Y así no depende del banco en cada pantalla | [`decisiones.md`](decisiones.md), ADR 6 |
 | ¿Qué pasa si el mismo evento llega dos veces? | Cada servicio guarda los `eventId` procesados en su tabla `eventos_procesados`, **en la misma transacción** que aplica el cambio. El repetido se descarta | [`eventos.md`](eventos.md) §4 |
 | ¿Qué pasa si un evento falla? | Va a la DLQ de su cola y queda guardado. No hay reintentos: reintentar en el momento solo retrasa el problema, y reencolar produce un bucle. Se revisa en la consola de RabbitMQ y se vuelve a publicar | [`eventos.md`](eventos.md) §5, y la carpeta 8 de la DEMO |
-| ¿Y el archivado? | Se prueba en los tests del agregado, desde los 3 estados permitidos (`BORRADOR`, `APROBADA` y `PUBLICADA`), y con la petición *Archivar (ADMINISTRADOR)* de la colección original. Publica `PreguntaArchivada` en la misma cola del tercer servicio que `PreguntaPublicada` | `PreguntaTest` y [`eventos.md`](eventos.md) §3 |
+| ¿Y el archivado? | Se prueba en los tests del agregado, desde los 5 estados permitidos (`BORRADOR`, `EN_CONSTRUCCION`, `RECHAZADA`, `APROBADA` y `PUBLICADA`), y con la petición *Archivar (ADMINISTRADOR)* de la colección original. Publica `PreguntaArchivada` en la misma cola del tercer servicio que `PreguntaPublicada` | `PreguntaTest` y [`eventos.md`](eventos.md) §3 |
 | ¿Por qué 401 y 403? | 401 es «no sé quién eres»: faltan las cabeceras o no son válidas. 403 es «sé quién eres y tu rol no alcanza» | [`decisiones.md`](decisiones.md), ADR 8 |
 | ¿Por qué no hay `DELETE`? | Una pregunta usada en un simulacro tiene que seguir siendo consultable. La única salida es `ARCHIVADA`, y no existe ninguna operación de borrado: ni endpoint, ni método en el agregado, ni en el repositorio | [`decisiones.md`](decisiones.md), ADR 3 |
 | ¿Cómo saben que el dominio no depende de frameworks? | Falla el build si alguien lo rompe: 3 reglas de ArchUnit en Java y 2 contratos de import-linter en Python. Se corren con `.\mvnw.cmd test` y con `lint-imports` | [`arquitectura.md`](arquitectura.md) §3 |
 | ¿Cómo se conectará el tercer microservicio? | Leyendo solo `contracts/`: el `.proto` y los JSON Schema. Su cola ya existe y guarda los eventos que nadie ha consumido todavía, y los bloques del `docker-compose.yml` están escritos y comentados | [`GUIA_INTEGRACION.md`](GUIA_INTEGRACION.md) |
-| ¿Por qué no hay un estado `RECHAZADA`? | La pregunta vuelve a `BORRADOR` con las observaciones, porque lo que se espera es que el autor la corrija y la reenvíe | [`decisiones.md`](decisiones.md), ADR 2 |
+| ¿Qué pasa con una pregunta rechazada? | Queda en `RECHAZADA` con las observaciones del revisor. Al editarla, el autor la reabre (`EN_CONSTRUCCION`) y la reenvía, y se abre una revisión nueva | [`decisiones.md`](decisiones.md), ADR 2 |
+| ¿En qué se diferencian `BORRADOR` y `EN_CONSTRUCCION`? | `BORRADOR` es la pregunta recién creada; pasa a `EN_CONSTRUCCION` la primera vez que el autor la edita, y solo desde ahí se envía a revisión | [`decisiones.md`](decisiones.md), ADR 2 |
+| ¿Cuántas opciones tiene una pregunta? | 4: 3 distractores y 1 correcta (invariante 1). Una pregunta con 3 o con 5 opciones se rechaza con 400 | `ValidadorEstructural` |
+| ¿Cómo se comprueba la «estructura gramatical coherente» de la invariante 3? | El banco comprueba la longitud mínima y que no haya opciones repetidas. La coherencia gramatical no se puede comprobar de forma fiable sin procesamiento de lenguaje natural, así que la juzga el revisor: es el criterio `COHERENCIA_GRAMATICAL` del formato, y sin él no se puede decidir (invariante 10) | [`arquitectura.md`](arquitectura.md) §4 |
+| ¿Qué relación hay entre Banco y Revisión en el context map? | Customer-Supplier, como en el Taller 1: Revisión es el proveedor de la decisión y el banco el cliente. El contenido viaja en sentido contrario, por un contrato publicado (gRPC y un evento) | [`arquitectura.md`](arquitectura.md) §2 |
 | ¿Comparten código los dos servicios? | Nada. Lo único común es `contracts/` | [`decisiones.md`](decisiones.md), ADR 5 |
 | ¿Qué falta por hacer? | El tercer microservicio, el contexto de Usuarios y Roles con JWT real, un API Gateway y el patrón Outbox | [`../README.md`](../README.md) |

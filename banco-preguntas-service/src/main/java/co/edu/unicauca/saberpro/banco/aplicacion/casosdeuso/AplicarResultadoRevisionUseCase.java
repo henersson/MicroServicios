@@ -20,9 +20,9 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>Aprobada  → la pregunta pasa a APROBADA y queda lista para publicarse.</li>
- *   <li>Rechazada → vuelve a BORRADOR con las observaciones del revisor visibles
- *       para el autor (ADR 2). No existe un estado RECHAZADA: una pregunta
- *       rechazada se corrige, no se descarta.</li>
+ *   <li>Rechazada → pasa a RECHAZADA con las observaciones del revisor visibles
+ *       para el autor, que la reabre al editarla (ADR 2): una pregunta rechazada
+ *       se corrige, no se descarta.</li>
  * </ul>
  *
  * <p>Los dos caminos son idempotentes con la tabla {@code eventos_procesados} y,
@@ -77,7 +77,7 @@ public class AplicarResultadoRevisionUseCase {
     }
 
     /**
-     * Aplica {@code PreguntaRechazadaPorPares}: EN_REVISION → BORRADOR, guardando
+     * Aplica {@code PreguntaRechazadaPorPares}: EN_REVISION → RECHAZADA, guardando
      * las observaciones para que el autor sepa qué corregir.
      *
      * @return true si el evento produjo un cambio; false si ya estaba aplicado
@@ -97,7 +97,7 @@ public class AplicarResultadoRevisionUseCase {
                 reloj.instant());
         if (cambio) {
             repositorio.guardar(pregunta);
-            log.info("Evento {} [{}]: la pregunta {} volvió a BORRADOR con {} observación(es).",
+            log.info("Evento {} [{}]: la pregunta {} pasó a RECHAZADA con {} observación(es).",
                     eventId, tipoEvento, preguntaId,
                     observaciones == null ? 0 : observaciones.size());
         } else {

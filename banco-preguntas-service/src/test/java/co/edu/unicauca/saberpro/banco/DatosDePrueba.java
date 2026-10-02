@@ -52,16 +52,14 @@ public final class DatosDePrueba {
                 NivelDificultad.MEDIO);
     }
 
-    /** Las 5 opciones válidas: 4 distractores y 1 correcta. */
+    /** Las 4 opciones válidas: 3 distractores y 1 correcta. */
     public static List<Opcion> opcionesValidas() {
         return List.of(
                 new Opcion("El acoplamiento de datos impide el despliegue independiente.", true),
                 new Opcion("PostgreSQL no admite conexiones concurrentes de varios servicios.",
                         false),
                 new Opcion("El teorema CAP prohíbe compartir un motor relacional.", false),
-                new Opcion("Una base compartida siempre es más costosa de operar.", false),
-                new Opcion("Los microservicios solo pueden comunicarse de forma asíncrona.",
-                        false));
+                new Opcion("Una base compartida siempre es más costosa de operar.", false));
     }
 
     /** Copia del contenido válido reemplazando solo las opciones. */
@@ -80,7 +78,7 @@ public final class DatosDePrueba {
                 base.subtema(), base.nivelDificultad());
     }
 
-    /** Las 5 opciones válidas, cambiando el texto de la que ocupa la posición dada. */
+    /** Las 4 opciones válidas, cambiando el texto de la que ocupa la posición dada. */
     public static List<Opcion> opcionesConTextoEnPosicion(int posicion, String texto) {
         List<Opcion> opciones = new ArrayList<>(opcionesValidas());
         Opcion original = opciones.get(posicion);

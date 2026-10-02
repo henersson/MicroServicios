@@ -26,13 +26,9 @@
         {
           "texto": "Porque una base de datos compartida siempre resulta mas costosa que mantener una instancia separada por cada microservicio.",
           "esCorrecta": false
-        },
-        {
-          "texto": "Porque los microservicios solo pueden comunicarse mediante mensajeria asincrona y compartir datos obligaria a usar REST.",
-          "esCorrecta": false
         }
       ],
-      "justificacion": "La independencia de despliegue y evolucion es la propiedad que define a los microservicios, y depende de que cada servicio sea dueno exclusivo de sus datos (database per service). Al compartir el esquema, un cambio en una tabla obliga a coordinar el despliegue de los tres servicios, que vuelven a comportarse como un monolito distribuido. Los distractores son plausibles pero incorrectos: PostgreSQL si admite multiples clientes concurrentes; el teorema CAP habla de consistencia, disponibilidad y tolerancia a particiones, no de propiedad de esquemas; el costo es una consecuencia secundaria y no siempre desfavorable; y los microservicios pueden comunicarse tanto de forma sincrona como asincrona.",
+      "justificacion": "La independencia de despliegue y evolucion es la propiedad que define a los microservicios, y depende de que cada servicio sea dueno exclusivo de sus datos (database per service). Al compartir el esquema, un cambio en una tabla obliga a coordinar el despliegue de los tres servicios, que vuelven a comportarse como un monolito distribuido. Los distractores son plausibles pero incorrectos: PostgreSQL si admite multiples clientes concurrentes; el teorema CAP habla de consistencia, disponibilidad y tolerancia a particiones, no de propiedad de esquemas; y el costo es una consecuencia secundaria y no siempre desfavorable.",
       "bibliografia": [
         "Newman, S. (2021). Building Microservices: Designing Fine-Grained Systems (2nd ed.). O'Reilly Media, cap. 4.",
         "Richardson, C. (2018). Microservices Patterns. Manning Publications, patron Database per Service.",

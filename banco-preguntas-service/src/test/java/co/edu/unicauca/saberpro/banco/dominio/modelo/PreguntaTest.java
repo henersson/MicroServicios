@@ -34,10 +34,20 @@ class PreguntaTest {
                 DatosDePrueba.contenidoValido(), validador, DatosDePrueba.AHORA);
     }
 
+    /** El autor edita la pregunta sin cambiar su contenido. */
+    private void trabajar(Pregunta pregunta) {
+        pregunta.editar(DatosDePrueba.AUTOR, DatosDePrueba.contenidoValido(), validador,
+                DatosDePrueba.AHORA);
+    }
+
     /** Lleva una pregunta recién creada hasta el estado pedido. */
     private Pregunta en(EstadoPregunta destino) {
         Pregunta pregunta = nueva();
         if (destino == EstadoPregunta.BORRADOR) {
+            return pregunta;
+        }
+        trabajar(pregunta);
+        if (destino == EstadoPregunta.EN_CONSTRUCCION) {
             return pregunta;
         }
         pregunta.enviarARevision(DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA);
@@ -46,6 +56,11 @@ class PreguntaTest {
         }
         pregunta.registrarRevisorAsignado(DatosDePrueba.REVISOR, DatosDePrueba.AHORA);
         if (destino == EstadoPregunta.EN_REVISION) {
+            return pregunta;
+        }
+        if (destino == EstadoPregunta.RECHAZADA) {
+            pregunta.registrarRechazoPorPares(DatosDePrueba.REVISOR,
+                    List.of("Recorta el contexto."), DatosDePrueba.AHORA);
             return pregunta;
         }
         pregunta.registrarAprobacionTecnica(DatosDePrueba.REVISOR, DatosDePrueba.AHORA);
@@ -84,11 +99,11 @@ class PreguntaTest {
         @Test
         @DisplayName("no se puede crear con contenido que incumple las invariantes 1 a 4")
         void rechazaContenidoInvalido() {
-            var contenidoCon4Opciones = DatosDePrueba.contenidoCon(
-                    DatosDePrueba.opcionesValidas().subList(0, 4));
+            var contenidoCon3Opciones = DatosDePrueba.contenidoCon(
+                    DatosDePrueba.opcionesValidas().subList(0, 3));
 
             assertThatThrownBy(() -> Pregunta.crear(UUID.randomUUID(), DatosDePrueba.AUTOR,
-                    contenidoCon4Opciones, validador, DatosDePrueba.AHORA))
+                    contenidoCon3Opciones, validador, DatosDePrueba.AHORA))
                     .isInstanceOf(ReglaDeNegocioViolada.class)
                     .satisfies(e -> assertThat(((ReglaDeNegocioViolada) e).getErrores())
                             .isNotEmpty());
@@ -96,21 +111,51 @@ class PreguntaTest {
     }
 
     @Nested
-    @DisplayName("Invariante 7 — solo el autor edita, y solo en BORRADOR")
+    @DisplayName("Invariante 7 — solo el autor edita, y solo en BORRADOR, EN_CONSTRUCCION o RECHAZADA")
     class Invariante7 {
 
         @Test
-        @DisplayName("el autor puede editar mientras esté en BORRADOR")
-        void autorEditaEnBorrador() {
+        @DisplayName("editar en BORRADOR la pasa a EN_CONSTRUCCION")
+        void editarEnBorradorPasaAEnConstruccion() {
             Pregunta pregunta = nueva();
             var nuevoContenido = DatosDePrueba.contenidoCon(
-                    "Un contexto corregido tras las observaciones del revisor.",
+                    "Un contexto ya trabajado por el autor.",
                     "¿Qué propiedad se compromete al compartir la base de datos?");
 
-            pregunta.editar(DatosDePrueba.AUTOR, nuevoContenido, validador);
+            pregunta.editar(DatosDePrueba.AUTOR, nuevoContenido, validador, DatosDePrueba.AHORA);
 
             assertThat(pregunta.getContenido().contexto())
-                    .isEqualTo("Un contexto corregido tras las observaciones del revisor.");
+                    .isEqualTo("Un contexto ya trabajado por el autor.");
+            assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.EN_CONSTRUCCION);
+            assertThat(pregunta.getHistorialEstados().getLast().anterior())
+                    .isEqualTo(EstadoPregunta.BORRADOR);
+        }
+
+        @Test
+        @DisplayName("editar en EN_CONSTRUCCION no cambia el estado ni añade historial")
+        void editarEnConstruccionNoCambiaEstado() {
+            Pregunta pregunta = en(EstadoPregunta.EN_CONSTRUCCION);
+            int historialAntes = pregunta.getHistorialEstados().size();
+
+            trabajar(pregunta);
+
+            assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.EN_CONSTRUCCION);
+            assertThat(pregunta.getHistorialEstados()).hasSize(historialAntes);
+        }
+
+        @Test
+        @DisplayName("editar en RECHAZADA la reabre: pasa a EN_CONSTRUCCION")
+        void editarEnRechazadaLaReabre() {
+            Pregunta pregunta = en(EstadoPregunta.RECHAZADA);
+
+            trabajar(pregunta);
+
+            assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.EN_CONSTRUCCION);
+            assertThat(pregunta.getHistorialEstados().getLast().anterior())
+                    .isEqualTo(EstadoPregunta.RECHAZADA);
+            assertThat(pregunta.getObservacionesUltimaRevision())
+                    .as("el autor sigue viendo qué corregir hasta que la reenvía")
+                    .isPresent();
         }
 
         @Test
@@ -119,23 +164,22 @@ class PreguntaTest {
             Pregunta pregunta = nueva();
 
             assertThatThrownBy(() -> pregunta.editar(DatosDePrueba.OTRO_USUARIO,
-                    DatosDePrueba.contenidoValido(), validador))
+                    DatosDePrueba.contenidoValido(), validador, DatosDePrueba.AHORA))
                     .isInstanceOf(AccesoNoAutorizado.class)
                     .hasMessageContaining("Solo el autor")
                     .hasMessageContaining("Invariante 7");
         }
 
         @Test
-        @DisplayName("no se puede editar fuera de BORRADOR")
-        void noEditaFueraDeBorrador() {
+        @DisplayName("no se puede editar fuera de BORRADOR, EN_CONSTRUCCION o RECHAZADA")
+        void noEditaFueraDeLosEstadosEditables() {
             for (EstadoPregunta estado : List.of(EstadoPregunta.PENDIENTE_REVISION,
                     EstadoPregunta.EN_REVISION, EstadoPregunta.APROBADA,
                     EstadoPregunta.PUBLICADA, EstadoPregunta.ARCHIVADA)) {
 
                 Pregunta pregunta = en(estado);
 
-                assertThatThrownBy(() -> pregunta.editar(DatosDePrueba.AUTOR,
-                        DatosDePrueba.contenidoValido(), validador))
+                assertThatThrownBy(() -> trabajar(pregunta))
                         .as("editar en estado %s", estado)
                         .isInstanceOf(TransicionInvalida.class)
                         .hasMessageContaining("Invariante 7");
@@ -148,13 +192,17 @@ class PreguntaTest {
             Pregunta pregunta = nueva();
             String contextoOriginal = pregunta.getContenido().contexto();
             var contenidoRoto = DatosDePrueba.contenidoCon(
-                    DatosDePrueba.opcionesValidas().subList(0, 3));
+                    DatosDePrueba.opcionesValidas().subList(0, 2));
 
-            assertThatThrownBy(() -> pregunta.editar(DatosDePrueba.AUTOR, contenidoRoto, validador))
+            assertThatThrownBy(() -> pregunta.editar(DatosDePrueba.AUTOR, contenidoRoto, validador,
+                    DatosDePrueba.AHORA))
                     .isInstanceOf(ReglaDeNegocioViolada.class);
 
             assertThat(pregunta.getContenido().contexto()).isEqualTo(contextoOriginal);
-            assertThat(pregunta.getContenido().opciones()).hasSize(5);
+            assertThat(pregunta.getContenido().opciones()).hasSize(4);
+            assertThat(pregunta.getEstado())
+                    .as("una edición rechazada no cuenta como trabajar la pregunta")
+                    .isEqualTo(EstadoPregunta.BORRADOR);
         }
     }
 
@@ -163,9 +211,9 @@ class PreguntaTest {
     class TransicionesValidas {
 
         @Test
-        @DisplayName("BORRADOR → PENDIENTE_REVISION al enviar a revisión")
-        void borradorAPendiente() {
-            Pregunta pregunta = nueva();
+        @DisplayName("EN_CONSTRUCCION → PENDIENTE_REVISION al enviar a revisión")
+        void enConstruccionAPendiente() {
+            Pregunta pregunta = en(EstadoPregunta.EN_CONSTRUCCION);
 
             pregunta.enviarARevision(DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA);
 
@@ -198,8 +246,8 @@ class PreguntaTest {
         }
 
         @Test
-        @DisplayName("EN_REVISION → BORRADOR con el rechazo, guardando las observaciones")
-        void enRevisionARechazo() {
+        @DisplayName("EN_REVISION → RECHAZADA con el rechazo, guardando las observaciones")
+        void enRevisionARechazada() {
             Pregunta pregunta = en(EstadoPregunta.EN_REVISION);
 
             boolean cambio = pregunta.registrarRechazoPorPares(DatosDePrueba.REVISOR,
@@ -209,8 +257,8 @@ class PreguntaTest {
 
             assertThat(cambio).isTrue();
             assertThat(pregunta.getEstado())
-                    .as("el rechazo devuelve la pregunta al autor, no la descarta (ADR 2)")
-                    .isEqualTo(EstadoPregunta.BORRADOR);
+                    .as("el rechazo deja la pregunta en RECHAZADA para que el autor la corrija (ADR 2)")
+                    .isEqualTo(EstadoPregunta.RECHAZADA);
             assertThat(pregunta.getObservacionesUltimaRevision())
                     .get().asString()
                     .contains("120 palabras")
@@ -230,13 +278,14 @@ class PreguntaTest {
                     .hasSize(1)
                     .first()
                     .satisfies(evento -> assertThat(((PreguntaPublicada) evento)
-                            .contenido().opciones()).hasSize(5));
+                            .contenido().opciones()).hasSize(4));
         }
 
         @Test
-        @DisplayName("se puede archivar desde BORRADOR, APROBADA y PUBLICADA")
-        void archivarDesdeLosTresEstados() {
+        @DisplayName("se puede archivar desde BORRADOR, EN_CONSTRUCCION, RECHAZADA, APROBADA y PUBLICADA")
+        void archivarDesdeLosCincoEstados() {
             for (EstadoPregunta estado : List.of(EstadoPregunta.BORRADOR,
+                    EstadoPregunta.EN_CONSTRUCCION, EstadoPregunta.RECHAZADA,
                     EstadoPregunta.APROBADA, EstadoPregunta.PUBLICADA)) {
 
                 Pregunta pregunta = en(estado);
@@ -254,17 +303,15 @@ class PreguntaTest {
         }
 
         @Test
-        @DisplayName("el rechazo y la corrección permiten reenviar a revisión")
+        @DisplayName("el rechazo, la reapertura y la corrección permiten reenviar a revisión")
         void cicloCompletoDeCorreccion() {
-            Pregunta pregunta = en(EstadoPregunta.EN_REVISION);
-            pregunta.registrarRechazoPorPares(DatosDePrueba.REVISOR,
-                    List.of("Recorta el contexto."), DatosDePrueba.AHORA);
+            Pregunta pregunta = en(EstadoPregunta.RECHAZADA);
             pregunta.extraerEventosPendientes();
 
             pregunta.editar(DatosDePrueba.AUTOR,
                     DatosDePrueba.contenidoCon("Contexto ya recortado a lo esencial.",
                             "¿Qué propiedad se compromete al compartir la base de datos?"),
-                    validador);
+                    validador, DatosDePrueba.AHORA);
             pregunta.enviarARevision(DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA);
 
             assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.PENDIENTE_REVISION);
@@ -279,9 +326,23 @@ class PreguntaTest {
     class TransicionesInvalidas {
 
         @Test
-        @DisplayName("no se puede enviar a revisión algo que no está en BORRADOR")
+        @DisplayName("una pregunta recién creada no puede saltar a PENDIENTE_REVISION")
+        void noSaltaDeBorradorAPendiente() {
+            Pregunta pregunta = nueva();
+
+            assertThatThrownBy(() -> pregunta.enviarARevision(
+                    DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA))
+                    .isInstanceOf(TransicionInvalida.class)
+                    .hasMessageContaining("EN_CONSTRUCCION")
+                    .hasMessageContaining("Invariante 6");
+            assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.BORRADOR);
+        }
+
+        @Test
+        @DisplayName("solo se envía a revisión desde EN_CONSTRUCCION")
         void noEnviaDesdeOtrosEstados() {
-            for (EstadoPregunta estado : List.of(EstadoPregunta.PENDIENTE_REVISION,
+            for (EstadoPregunta estado : List.of(EstadoPregunta.BORRADOR,
+                    EstadoPregunta.RECHAZADA, EstadoPregunta.PENDIENTE_REVISION,
                     EstadoPregunta.EN_REVISION, EstadoPregunta.APROBADA,
                     EstadoPregunta.PUBLICADA, EstadoPregunta.ARCHIVADA)) {
 
@@ -298,7 +359,8 @@ class PreguntaTest {
         @DisplayName("no se puede publicar algo que no está en APROBADA")
         void noPublicaSinAprobar() {
             for (EstadoPregunta estado : List.of(EstadoPregunta.BORRADOR,
-                    EstadoPregunta.PENDIENTE_REVISION, EstadoPregunta.EN_REVISION,
+                    EstadoPregunta.EN_CONSTRUCCION, EstadoPregunta.PENDIENTE_REVISION,
+                    EstadoPregunta.EN_REVISION, EstadoPregunta.RECHAZADA,
                     EstadoPregunta.PUBLICADA, EstadoPregunta.ARCHIVADA)) {
 
                 Pregunta pregunta = en(estado);
@@ -306,6 +368,21 @@ class PreguntaTest {
                 assertThatThrownBy(() -> pregunta.publicar(
                         DatosDePrueba.ADMINISTRADOR, validador, DatosDePrueba.AHORA))
                         .as("publicar desde %s", estado)
+                        .isInstanceOf(TransicionInvalida.class);
+            }
+        }
+
+        @Test
+        @DisplayName("no se puede archivar mientras está en el ciclo de revisión")
+        void noArchivaDuranteLaRevision() {
+            for (EstadoPregunta estado : List.of(EstadoPregunta.PENDIENTE_REVISION,
+                    EstadoPregunta.EN_REVISION)) {
+
+                Pregunta pregunta = en(estado);
+
+                assertThatThrownBy(() -> pregunta.archivar(
+                        DatosDePrueba.ADMINISTRADOR, null, DatosDePrueba.AHORA))
+                        .as("archivar desde %s", estado)
                         .isInstanceOf(TransicionInvalida.class);
             }
         }
@@ -368,15 +445,14 @@ class PreguntaTest {
         @Test
         @DisplayName("rechazo repetido no vuelve a mover la pregunta")
         void rechazoRepetido() {
-            Pregunta pregunta = en(EstadoPregunta.EN_REVISION);
-            pregunta.registrarRechazoPorPares(DatosDePrueba.REVISOR,
-                    List.of("Recorta el contexto."), DatosDePrueba.AHORA);
+            Pregunta pregunta = en(EstadoPregunta.RECHAZADA);
             int historialAntes = pregunta.getHistorialEstados().size();
 
             boolean segundo = pregunta.registrarRechazoPorPares(DatosDePrueba.REVISOR,
                     List.of("Recorta el contexto."), DatosDePrueba.AHORA);
 
             assertThat(segundo).isFalse();
+            assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.RECHAZADA);
             assertThat(pregunta.getHistorialEstados()).hasSize(historialAntes);
         }
     }
@@ -406,11 +482,11 @@ class PreguntaTest {
         }
 
         @Test
-        @DisplayName("una PUBLICADA conserva sus 5 opciones con una sola correcta")
-        void publicadaConservaSusCincoOpciones() {
+        @DisplayName("una PUBLICADA conserva sus 4 opciones con una sola correcta")
+        void publicadaConservaSusCuatroOpciones() {
             Pregunta pregunta = en(EstadoPregunta.PUBLICADA);
 
-            assertThat(pregunta.getContenido().opciones()).hasSize(5);
+            assertThat(pregunta.getContenido().opciones()).hasSize(4);
             assertThat(pregunta.getContenido().opciones())
                     .filteredOn(Opcion::esCorrecta).hasSize(1);
         }
@@ -429,6 +505,7 @@ class PreguntaTest {
                     .extracting(CambioEstado::nuevo)
                     .containsExactly(
                             EstadoPregunta.BORRADOR,
+                            EstadoPregunta.EN_CONSTRUCCION,
                             EstadoPregunta.PENDIENTE_REVISION,
                             EstadoPregunta.EN_REVISION,
                             EstadoPregunta.APROBADA,
@@ -444,7 +521,7 @@ class PreguntaTest {
         @Test
         @DisplayName("extraer los eventos los entrega una sola vez")
         void extraerEventosLosVacia() {
-            Pregunta pregunta = nueva();
+            Pregunta pregunta = en(EstadoPregunta.EN_CONSTRUCCION);
             pregunta.enviarARevision(DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA);
 
             assertThat(pregunta.extraerEventosPendientes()).hasSize(1);
@@ -456,7 +533,7 @@ class PreguntaTest {
         @Test
         @DisplayName("el evento de envío lleva el código de competencia para el otro contexto")
         void eventoLlevaCompetencia() {
-            Pregunta pregunta = nueva();
+            Pregunta pregunta = en(EstadoPregunta.EN_CONSTRUCCION);
             pregunta.enviarARevision(DatosDePrueba.AUTOR, validador, DatosDePrueba.AHORA);
 
             assertThat(pregunta.extraerEventosPendientes())
